@@ -1,0 +1,17 @@
+This is my latex editor. Managed to un-flatpak from builder as I had trouble with texlive.
+
+# Installation
+
+GSettings:
+cp apps.gsettings-example-py.gschema.xml /usr/share/glib-2.0/schemas/
+glib-compile-schemas /usr/share/glib-2.0/schemas/
+
+
+# Uninstall:
+
+Undo the install
+
+
+# Run
+
+Right now it's just `python main.py`
