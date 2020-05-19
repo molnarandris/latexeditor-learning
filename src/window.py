@@ -1,20 +1,3 @@
-# window.py
-#
-# Copyright 2020 Andras Molnar
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import gi
 import os
 
@@ -24,7 +7,7 @@ from gi.repository import Gio
 from gi.repository import GObject
 from .documentmanager import Documentmanager
 from .pdfviewer import PdfViewer
-from .processrunner import GAsyncSpawn
+from .processrunner import ProcessRunner
 
 gi.require_version('GtkSource', '3.0')
 from gi.repository import GtkSource
@@ -56,6 +39,7 @@ class WindowStateSaver:
         self.current_maximized = settings.get_boolean('maximized')
         self.current_fullscreen = settings.get_boolean('fullscreen')
         self.current_paned_pos = settings.get_double("paned-position")
+        self.current_file = settings.get_string("file")
 
         # Set window geometry
         # FIXME: if saved maximized, the unmaximize does not work well.
@@ -68,6 +52,13 @@ class WindowStateSaver:
         # Careful, after setting maximized: stored the previous state...
         # Ok, no control over order...
         win.paned.set_position(self.current_paned_pos*self.current_width)
+        if win.docmanager.open_file(self.current_file) is None:
+            win.header_bar.set_subtitle(self.current_file)
+        else:
+            self.current_file = ""
+        
+    def on_file_save(self,f):
+        self.current_file = f
 
     def on_handle_move(self, widget, event):
         self.current_paned_pos = widget.get_position()/widget.get_allocated_width()
@@ -96,6 +87,7 @@ class WindowStateSaver:
         settings.set_boolean("maximized", self.current_maximized)
         settings.set_boolean("fullscreen", self.current_fullscreen)
         settings.set_double("paned-position", self.current_paned_pos)
+        settings.set_string("file", self.current_file)
         return False
 
 
@@ -162,6 +154,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             msg = self.docmanager.open_file(filename)
             if msg is None:
                 self.header_bar.set_subtitle(filename)
+                self.state_saver.on_file_save(filename)
             else:
                 dialog = Gtk.MessageDialog(
                     self,
@@ -202,18 +195,28 @@ class MathwriterWindow(Gtk.ApplicationWindow):
 
     def do_compile(self):
         self.save_callback(None)
-        spawn = GAsyncSpawn()
-#        cmd = ['/usr/bin/ls', self.docmanager.tex]
-        cmd = ['/usr/bin/pdflatex', '-synctex=1', '-interaction=nonstopmode',
-               '-pdf', '-halt-on-error', '-output-directory', self.docmanager.dir, self.docmanager.tex]
-        spawn.connect("process-done", self.on_compile_finish)
-        spawn.run(cmd)
+        cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
+               '-pdf', '-halt-on-error', self.docmanager.tex]
+        proc = ProcessRunner(cmd)
+        proc.connect('finished', self.on_compile_finished)
 
-    def on_compile_finish(self, sender, ret):
-        if ret == 0:
-            print("compile finished succesfully")
+    def on_compile_finished(self,sender):
+        if sender.result == 0:
+            print("Compile succesful")
             self.pdf_viewer.reload()
-        else:
-            print("compile finished with error")
-        sender.disconnect_by_func(self.on_compile_finish)
-        sender.my_destroy()
+            i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
+            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
+            proc = ProcessRunner(cmd)
+            proc.connect('finished', self.on_synctex_finished)
+        else: 
+            print("Compile failed")
+            print("output:\n ------------------------- \n"+sender.stdout)
+            print("err\n-------------------\n"+sender.stderr)
+    
+        
+    def on_synctex_finished(self,sender):
+        print("Synctex finished successfully")
+        print(sender.stdout)
+        
+            
+

@@ -1,1 +1,21 @@
-Something is wrong with the spawning. It eats way too much CPU and does not seem to die.
+*Next things to do
+
+  - Synctex
+
+
+
+
+*Concrete but not so urgent
+
+  - Double check the process runner, not sure if it actually works. Some point change it to be able to cancel (at some tikz errors latex goes to infinite loop)
+  - Some nicer way for the state saver, the file is direct calling. Maybe rewrite it to signals.
+ 
+*Future plans
+
+  - Handling compilation errors
+  - Some kind of command completion
+  - git support
+  - Render equations inline
+  - Render tikz inline
+  - Some drawing thing
+  - Possibly a latex editing widget

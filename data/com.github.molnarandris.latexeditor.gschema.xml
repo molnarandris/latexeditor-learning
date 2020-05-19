@@ -29,5 +29,10 @@
       <summary>Pane position</summary>
       <description>The position of the division</description>
     </key>
+    <key name="file" type="s">
+      <default>""</default>
+      <summary>Tex file</summary>
+      <description>The last opened tex file</description>
+    </key>
 	</schema>
 </schemalist>
