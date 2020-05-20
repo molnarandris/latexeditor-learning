@@ -1,15 +1,18 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
+from gi.repository import Gdk
 gi.require_version('Poppler', '0.18')
 from gi.repository import Poppler	
+from .processrunner import ProcessRunner
 import math
 import os
+import re
 
 class PdfViewer(Gtk.EventBox):
     __gtype_name__ = 'PdfViewer'
    
-    def __init__(self):
+    def __init__(self,win):
         super().__init__()
         self.layout = Gtk.Layout()
         self.scroll = Gtk.ScrolledWindow()
@@ -23,6 +26,7 @@ class PdfViewer(Gtk.EventBox):
         self.doc = None
         self.zoom = 1
         self.page_sep = 5
+        self.win = win
 
         self.scroll.connect("size-allocate", self.on_scroll_size_allocate)
         self.layout.connect("draw", self.on_draw)
@@ -85,12 +89,27 @@ class PdfViewer(Gtk.EventBox):
         x = x/self.zoom
         p = math.floor(y/(self.page_height+self.page_sep))
         y = y % (self.page_height+self.page_sep)
-        for l in self.pages[p].get_link_mapping():
-            if x > l.area.x1 and x < l.area.x2 and \
-               self.page_height-y < l.area.y2 and self.page_height-y > l.area.y1:
-                action = l.action   # Otherwise it does not work....
-                dest = self.doc.find_dest(action.goto_dest.dest.named_dest)
-                self.show_coord(dest.page_num, dest.left, dest.top)
+        if event.get_event_type() == Gdk.EventType._2BUTTON_PRESS:
+            print("double press")
+            cmd = ['/usr/bin/synctex', 'edit', '-o', str(p+1) + ":" + str(x) + ":" + str(y)+ ":" + self.pdf]
+            proc = ProcessRunner(cmd)
+            proc.connect('finished', self.on_synctex_finished)
+            
+        else:
+            for l in self.pages[p].get_link_mapping():
+                if x > l.area.x1 and x < l.area.x2 and \
+                   self.page_height-y < l.area.y2 and self.page_height-y > l.area.y1:
+                    action = l.action   # Otherwise it does not work....
+                    dest = self.doc.find_dest(action.goto_dest.dest.named_dest)
+                    self.show_coord(dest.page_num, dest.left, dest.top)
+                    
+    def on_synctex_finished(self,sender):
+        print(sender.stdout)
+        l = int(re.search("Line:(.*)\n",sender.stdout).group(1))
+        itr = self.win.buffer.get_iter_at_line(l-1)
+        self.win.sourceview.scroll_to_iter(itr,0.0,True,0.5,0.5)
+        self.win.buffer.place_cursor(itr)
+        self.win.sourceview.grab_focus()
 
     def on_scroll_size_allocate(self, widget, allocation):
         if self.doc_width:

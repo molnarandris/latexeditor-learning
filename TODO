@@ -1,8 +1,9 @@
 *Next things to do
 
-  - Synctex
-
-
+  - At error, if changing window and changing back, the pdf disappears. Maybe I should do sth with that.
+    Well, I should actually display the error message.
+  - I think there is a bug: compile with error, close the program, open it, correct the error and try to compile again, then the pdf is None.
+  - At resizing pdf does not keep its position
 
 
 *Concrete but not so urgent

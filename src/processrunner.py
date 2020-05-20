@@ -3,7 +3,10 @@ from gi.repository import GObject
 from gi.repository import GLib
 
 
-
+# Note that cannot change cwd. If that  is needed, use gio.subprocesslauncher
+# Even though I don't get how that works.
+# In my case just can specify latexmk output directory.
+# No problem with synctex
 class ProcessRunner(GObject.GObject):
 
     __gsignals__ = {
@@ -30,5 +33,5 @@ class ProcessRunner(GObject.GObject):
             if err.domain == 'g-io-error-quark':
                 return
 
-    def cancel():
+    def cancel(self):
         self.cancellable.cancel()

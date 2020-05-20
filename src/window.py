@@ -1,5 +1,6 @@
 import gi
 import os
+import re
 
 from gi.repository import Gtk
 from gi.repository import Gdk
@@ -52,9 +53,11 @@ class WindowStateSaver:
         # Careful, after setting maximized: stored the previous state...
         # Ok, no control over order...
         win.paned.set_position(self.current_paned_pos*self.current_width)
-        if win.docmanager.open_file(self.current_file) is None:
+        msg = win.docmanager.open_file(self.current_file)
+        if msg is None:
             win.header_bar.set_subtitle(self.current_file)
         else:
+            print("Error opening last file\n"+msg)
             self.current_file = ""
         
     def on_file_save(self,f):
@@ -115,7 +118,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.buffer = self.sourceview.get_buffer()
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
-        self.pdf_viewer=PdfViewer()
+        self.pdf_viewer=PdfViewer(self)
         self.paned.add(self.pdf_viewer)
         self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
         self.btn_open.connect("clicked", self.open_callback)
@@ -196,7 +199,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     def do_compile(self):
         self.save_callback(None)
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
-               '-pdf', '-halt-on-error', self.docmanager.tex]
+               '-pdf', '-halt-on-error', '-output-directory='+self.docmanager.dir, self.docmanager.tex]
         proc = ProcessRunner(cmd)
         proc.connect('finished', self.on_compile_finished)
 
@@ -205,7 +208,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Compile succesful")
             self.pdf_viewer.reload()
             i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
-            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
+            print("synctex agruments: line: " + str(i.get_line()) + " offset: " + str(i.get_line_offset()))
+            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_line_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
             proc = ProcessRunner(cmd)
             proc.connect('finished', self.on_synctex_finished)
         else: 
@@ -215,8 +219,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     
         
     def on_synctex_finished(self,sender):
-        print("Synctex finished successfully")
-        print(sender.stdout)
+        if sender.result == 0:
+            print("Synctex finished successfully")
+            page = int(re.search("Page:(.*)\n",sender.stdout).group(1))
+            x = float(re.search("x:(.*)\n",sender.stdout).group(1))
+            y = float(re.search("y:(.*)\n",sender.stdout).group(1))
+            y = self.pdf_viewer.page_height - y
+            self.pdf_viewer.show_coord(page,x,y)
+            print("Page: " + str(page) + " x: " + str(x) + " y: " + str(y))
+        else:
+            print("Synctex failed")
         
             
 
