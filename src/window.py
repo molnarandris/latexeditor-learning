@@ -225,8 +225,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             page = int(re.search("Page:(.*)\n",sender.stdout).group(1))
             x = float(re.search("x:(.*)\n",sender.stdout).group(1))
             y = float(re.search("y:(.*)\n",sender.stdout).group(1))
-            y = self.pdf_viewer.page_height - y
-            self.pdf_viewer.show_coord(page,x,y)
+            self.pdf_viewer.model.set_page(page)
             print("Page: " + str(page) + " x: " + str(x) + " y: " + str(y))
         else:
             print("Synctex failed")
