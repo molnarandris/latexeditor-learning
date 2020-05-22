@@ -109,6 +109,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     btn_save   = Gtk.Template.Child()
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
+    pdf_scroll = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -119,7 +120,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
         self.pdf_viewer=PdfViewer(self)
-        self.paned.add(self.pdf_viewer)
+        self.pdf_scroll.add(self.pdf_viewer)
         self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
         self.btn_open.connect("clicked", self.open_callback)
         self.btn_save.connect("clicked", self.save_callback)
