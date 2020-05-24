@@ -4,14 +4,15 @@ import re
 
 from gi.repository import Gtk
 from gi.repository import Gdk
-from gi.repository import Gio
+from gi.repository import Gio,GLib
 from gi.repository import GObject
-from .documentmanager import Documentmanager
+#from .documentmanager import Documentmanager
 from .processrunner import ProcessRunner
 
 gi.require_version('GtkSource', '3.0')
 from gi.repository import GtkSource
 gi.require_version('EvinceDocument', '3.0')
+gi.require_version('EvinceView', '3.0')
 from gi.repository import EvinceDocument, EvinceView
 
 
@@ -46,12 +47,8 @@ class WindowStateSaver:
         # Careful, after setting maximized: stored the previous state...
         # Ok, no control over order...
         win.paned.set_position(self.current_paned_pos*self.current_width)
-        msg = win.docmanager.open_file(self.current_file)
-        if msg is None:
-            win.header_bar.set_subtitle(self.current_file)
-        else:
-            print("Error opening last file\n"+msg)
-            self.current_file = ""
+        if self.current_file != "":
+            win.on_tex_open(None,self.current_file)
         
     def on_file_save(self,f):
         self.current_file = f
@@ -101,7 +98,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
     pdf_scroll = Gtk.Template.Child()
-    open_dialog= Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -120,7 +116,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.buffer = self.sourceview.get_buffer()
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
-        self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
+        self.tex = None
+        #self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
         self.state_saver = WindowStateSaver(self)
         # EvinceView emits sync-source on CTRL+left click, I cannot change that. (It's hard-coded.)
         # To have better synctex support (not only line), 
@@ -133,50 +130,73 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         # Without this, the pdf viewer does not show
         self.show_all()
         
-    # File chooser, then pass the selected file to the doc manager
-    def on_open(self, action, value):
-        dialog = Gtk.FileChooserNative.new(
-            "Please choose a file",
-            self,
-            Gtk.FileChooserAction.OPEN,
-        )
-        # Note that if running from builder, the path will be /run/user/...
-        # Unless you install the flatpak app first.
+    # Open callback. If value is None, then do choose a file. Otherwise open value.
+    def on_tex_open(self, action, value):
+        if value is None:
+            dialog = Gtk.FileChooserNative.new(
+                "Please choose a file",
+                self,
+                Gtk.FileChooserAction.OPEN,
+            )
+            # Note that if running from builder, the path will be /run/user/...
+            # Unless you install the flatpak app first.
 
-        filter_text = Gtk.FileFilter()
-        filter_text.set_name("Text files")
-        filter_text.add_mime_type("text/plain")
-        dialog.add_filter(filter_text)
+            filter_text = Gtk.FileFilter()
+            filter_text.set_name("Text files")
+            filter_text.add_mime_type("text/plain")
+            dialog.add_filter(filter_text)
 
-        filter_any = Gtk.FileFilter()
-        filter_any.set_name("Any files")
-        filter_any.add_pattern("*")
-        dialog.add_filter(filter_any)
+            response = dialog.run()
+            dialog.destroy()
 
-        response = dialog.run()
-        dialog.destroy()
-
-        if response == Gtk.ResponseType.ACCEPT:
-            filename = dialog.get_filename()
-            msg = self.docmanager.open_file(filename)
-            if msg is None:
-                self.header_bar.set_subtitle(filename)
-                self.state_saver.on_file_save(filename)
+            if response == Gtk.ResponseType.ACCEPT:
+                filename = dialog.get_filename()
             else:
-                dialog = Gtk.MessageDialog(
-                    self,
-                    0,
-                    Gtk.MessageType.INFO,
-                    Gtk.ButtonsType.OK,
-                    msg,)
-                dialog.run()
-                dialog.destroy()
+                return
+        else:
+            filename = value
+            
+        f = GtkSource.File.new()
+        f.set_location(Gio.File.new_for_path(filename))
+        loader = GtkSource.FileLoader.new(self.buffer,f)
+        loader.load_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_tex_open_finish,None)
 
+    def on_tex_open_finish(self,loader,result,data):
+        if loader.load_finish(result):
+            filename = loader.get_location().get_path()
+            self.tex = filename
+            print("Loading the tex file finished succesfully.")
+            self.header_bar.set_subtitle(filename)
+            self.state_saver.on_file_save(filename)
+            pdfname = os.path.splitext(filename)[0] + '.pdf'
+            #should do error check here. 
+            pdf = Gio.File.new_for_path(pdfname)
+            pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
+            pdf_loader.connect("finished", self.on_pdf_load_finished)
+            pdf_loader.run()
+        else:
+            msg = "File loading failed"
+            dialog = Gtk.MessageDialog(
+                self,
+                0,
+                Gtk.MessageType.INFO,
+                Gtk.ButtonsType.OK,
+                msg,)
+            dialog.run()
+            dialog.destroy()
+        
+    def on_pdf_load_finished(self,job):
+        if job.is_failed():
+            print("Loading the Pdf has failed")
+        else:
+            self.pdf_viewer.model.set_document(job.document)
+            
     # If no file opened, then set the file with file chooser. Call file saver
     # of doc manager. The file writing can also fail. In that case, choose
     # another file.
     def on_save(self, action, value):
-        if self.docmanager.tex is None:
+        filename = self.tex
+        if filename is None:
             dialog = Gtk.FileChooserNative.new(
                     "Please choose a file",
                     self,
@@ -184,12 +204,18 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             )
             response = dialog.run()
             if response == Gtk.ResponseType.ACCEPT:
-                self.docmanager.tex = dialog.get_filename()
+                filename = dialog.get_filename()
             dialog.destroy()
+            
+        f = GtkSource.File.new()
+        f.set_location(Gio.File.new_for_path(filename))
+        saver = GtkSource.FileSaver.new(self.buffer,f)
+        saver.save_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_save_finished,None)
 
-        msg = self.docmanager.save_file()
-        if msg is None:
-            self.header_bar.set_subtitle(self.docmanager.tex)
+    def on_save_finished(self,source,result,data):
+        if source.save_finish(result): 
+            self.tex = source.get_location().get_path()
+            self.header_bar.set_subtitle(self.tex)
         else:
             dialog = Gtk.MessageDialog(
                 self,
@@ -202,8 +228,9 @@ class MathwriterWindow(Gtk.ApplicationWindow):
 
     def on_compile(self, action, value):
         self.on_save(action, value)
+        directory = os.path.dirname(self.tex)
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
-               '-pdf', '-halt-on-error', '-output-directory='+self.docmanager.dir, self.docmanager.tex]
+               '-pdf', '-halt-on-error', '-output-directory=' + directory, self.tex]
         proc = ProcessRunner(cmd)
         proc.connect('finished', self.on_compile_finished)
 
@@ -212,13 +239,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Compile succesful")
             self.pdf_viewer.reload()
             i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
-            sl = EvinceDocument.SourceLink.new(self.docmanager.tex,i.get_line(),i.get_line_offset())
-            print("sl finished")
+            sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
             self.pdf_viewer.highlight_forward_search(sl)
-            print("synctex agruments: line: " + str(i.get_line()) + " offset: " + str(i.get_line_offset()))
-#            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_line_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
-#            proc = ProcessRunner(cmd)
-#            proc.connect('finished', self.on_synctex_finished)
         else: 
             print("Compile failed")
             print("output:\n ------------------------- \n"+sender.stdout)
@@ -242,7 +264,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.get_application().set_accels_for_action('win.compile', ['F5'])
             
         action = Gio.SimpleAction.new('open', None)
-        action.connect('activate', self.on_open)
+        action.connect('activate', self.on_tex_open)
         self.add_action(action)
         self.get_application().set_accels_for_action('win.open', ['<ctrl>o'])
 
