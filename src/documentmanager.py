@@ -1,7 +1,9 @@
 from gi.repository import Gtk
 import os
 #import sys
-
+import gi
+gi.require_version('EvinceView', '3.0')
+from gi.repository import EvinceView, EvinceDocument
 
 class Documentmanager:
     def __init__(self, win, buf, pdfviewer):
@@ -27,7 +29,8 @@ class Documentmanager:
                 self.dir = os.path.dirname(fname)
             except IOError:
                 return "Error reading file"
-        self.pdfviewer.open_file(self.pdf)
+        doc = EvinceDocument.Document.factory_get_document("file://"+self.pdf)
+        self.pdfviewer.model.set_document(doc)
         return None
 
     def save_file(self):

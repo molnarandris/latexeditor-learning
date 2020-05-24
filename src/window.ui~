@@ -3,6 +3,49 @@
 <interface>
   <requires lib="gtk+" version="3.20"/>
   <requires lib="gtksourceview" version="4.0"/>
+  <object class="GtkImage" id="image1">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">media-playback-start-symbolic</property>
+  </object>
+  <object class="GtkPopover" id="popover1">
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkModelButton">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="action_name">win.open</property>
+            <property name="text" translatable="yes">Open</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkModelButton">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="action_name">win.save</property>
+            <property name="text" translatable="yes">Save</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
   <template class="MathwriterWindow" parent="GtkApplicationWindow">
     <property name="can_focus">False</property>
     <property name="default_width">600</property>
@@ -91,19 +134,25 @@
         <property name="title">MathWriter</property>
         <property name="show_close_button">True</property>
         <child>
-          <object class="GtkButton" id="btn_open">
-            <property name="label" translatable="yes">Open</property>
+          <object class="GtkMenuButton" id="menu">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
+            <property name="focus_on_click">False</property>
             <property name="receives_default">True</property>
+            <property name="direction">none</property>
+            <property name="popover">popover1</property>
+            <child>
+              <placeholder/>
+            </child>
           </object>
         </child>
         <child>
-          <object class="GtkButton" id="btn_save">
-            <property name="label" translatable="yes">Save</property>
+          <object class="GtkButton" id="btn_compile">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="action_name">win.compile</property>
+            <property name="image">image1</property>
           </object>
           <packing>
             <property name="position">1</property>
@@ -111,7 +160,6 @@
         </child>
         <child>
           <object class="GtkStackSwitcher">
-            <property name="width_request">-1</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="homogeneous">True</property>

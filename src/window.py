@@ -7,22 +7,13 @@ from gi.repository import Gdk
 from gi.repository import Gio
 from gi.repository import GObject
 from .documentmanager import Documentmanager
-from .pdfviewer import PdfViewer
 from .processrunner import ProcessRunner
 
 gi.require_version('GtkSource', '3.0')
 from gi.repository import GtkSource
 gi.require_version('EvinceDocument', '3.0')
-from gi.repository import EvinceDocument
+from gi.repository import EvinceDocument, EvinceView
 
-
-
-
-def makeactions(win):
-    compile_action = Gio.SimpleAction.new('compile', None)
-    compile_action.connect('activate', lambda action, param: win.do_compile())
-    win.add_action(compile_action)
-    win.get_application().set_accels_for_action('win.compile', ['F5'])
 
 # Saving and reloading window geometry with Gio.settings
 class WindowStateSaver:
@@ -103,29 +94,33 @@ class MathwriterWindow(Gtk.ApplicationWindow):
 
     # Tell builder about GtkSource and my PdfViewer    
     GObject.type_register(GtkSource.View)
-    GObject.type_register(PdfViewer)
+    #GObject.type_register(PdfViewer)
 
     # import all
     sourceview = Gtk.Template.Child()
-    btn_open   = Gtk.Template.Child()
-    btn_save   = Gtk.Template.Child()
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
     pdf_scroll = Gtk.Template.Child()
+    open_dialog= Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        #self.init_template()
+
+        # Setting up Evince as Pdf viewer
         EvinceDocument.init()
+        #self.pdf_viewer=PdfViewer(self)
+        self.pdf_viewer = EvinceView.View()
+        model = EvinceView.DocumentModel()
+        self.pdf_viewer.set_model(model)
+        self.pdf_viewer.model = model
+        self.pdf_scroll.add(self.pdf_viewer)
+        
+        
         # Get different components from .ui file and add the rest
         self.buffer = self.sourceview.get_buffer()
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
-        self.pdf_viewer=PdfViewer(self)
-        self.pdf_scroll.add(self.pdf_viewer)
         self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
-        self.btn_open.connect("clicked", self.open_callback)
-        self.btn_save.connect("clicked", self.save_callback)
         self.state_saver = WindowStateSaver(self)
         # EvinceView emits sync-source on CTRL+left click, I cannot change that. (It's hard-coded.)
         # To have better synctex support (not only line), 
@@ -134,12 +129,12 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         # And then find that in the current line
         self.pdf_viewer.connect("sync-source",self.on_sync_source)
         # Add actions
-        makeactions(self)
+        self.makeactions()
         # Without this, the pdf viewer does not show
         self.show_all()
-
+        
     # File chooser, then pass the selected file to the doc manager
-    def open_callback(self, button):
+    def on_open(self, action, value):
         dialog = Gtk.FileChooserNative.new(
             "Please choose a file",
             self,
@@ -180,7 +175,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     # If no file opened, then set the file with file chooser. Call file saver
     # of doc manager. The file writing can also fail. In that case, choose
     # another file.
-    def save_callback(self, button):
+    def on_save(self, action, value):
         if self.docmanager.tex is None:
             dialog = Gtk.FileChooserNative.new(
                     "Please choose a file",
@@ -205,8 +200,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             dialog.run()
             dialog.destroy()
 
-    def do_compile(self):
-        self.save_callback(None)
+    def on_compile(self, action, value):
+        self.on_save(action, value)
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
                '-pdf', '-halt-on-error', '-output-directory='+self.docmanager.dir, self.docmanager.tex]
         proc = ProcessRunner(cmd)
@@ -228,19 +223,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Compile failed")
             print("output:\n ------------------------- \n"+sender.stdout)
             print("err\n-------------------\n"+sender.stderr)
-    
-    """    
-    def on_synctex_finished(self,sender):
-        if sender.result == 0:
-            print("Synctex finished successfully")
-            page = int(re.search("Page:(.*)\n",sender.stdout).group(1))
-            x = float(re.search("x:(.*)\n",sender.stdout).group(1))
-            y = float(re.search("y:(.*)\n",sender.stdout).group(1))
-            self.pdf_viewer.model.set_page(page)
-            print("Page: " + str(page) + " x: " + str(x) + " y: " + str(y))
-        else:
-            print("Synctex failed")
-    """  
             
     def on_sync_source(self,sender,sourcelink):
         line = sourcelink.line -1
@@ -253,5 +235,19 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.sourceview.scroll_to_iter(it,0,False,0,0)
         self.sourceview.grab_focus()
         
+    def makeactions(self):
+        action = Gio.SimpleAction.new('compile', None)
+        action.connect('activate', self.on_compile)
+        self.add_action(action)
+        self.get_application().set_accels_for_action('win.compile', ['F5'])
             
+        action = Gio.SimpleAction.new('open', None)
+        action.connect('activate', self.on_open)
+        self.add_action(action)
+        self.get_application().set_accels_for_action('win.open', ['<ctrl>o'])
+
+        action = Gio.SimpleAction.new('save', None)
+        action.connect('activate', self.on_save)
+        self.add_action(action)
+        self.get_application().set_accels_for_action('win.save', ['<ctrl>s'])
 
