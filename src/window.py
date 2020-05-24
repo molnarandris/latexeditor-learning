@@ -12,6 +12,8 @@ from .processrunner import ProcessRunner
 
 gi.require_version('GtkSource', '3.0')
 from gi.repository import GtkSource
+gi.require_version('EvinceDocument', '3.0')
+from gi.repository import EvinceDocument
 
 
 
@@ -114,7 +116,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         #self.init_template()
-        
+        EvinceDocument.init()
         # Get different components from .ui file and add the rest
         self.buffer = self.sourceview.get_buffer()
         lang_manager = GtkSource.LanguageManager()
@@ -125,6 +127,12 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.btn_open.connect("clicked", self.open_callback)
         self.btn_save.connect("clicked", self.save_callback)
         self.state_saver = WindowStateSaver(self)
+        # EvinceView emits sync-source on CTRL+left click, I cannot change that. (It's hard-coded.)
+        # To have better synctex support (not only line), 
+        # one has to either preprocess the tex file before compile to contain more rows,
+        # or intercept CTRL+click, look for the word under the pointer
+        # And then find that in the current line
+        self.pdf_viewer.connect("sync-source",self.on_sync_source)
         # Add actions
         makeactions(self)
         # Without this, the pdf viewer does not show
@@ -209,16 +217,19 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Compile succesful")
             self.pdf_viewer.reload()
             i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
+            sl = EvinceDocument.SourceLink.new(self.docmanager.tex,i.get_line(),i.get_line_offset())
+            print("sl finished")
+            self.pdf_viewer.highlight_forward_search(sl)
             print("synctex agruments: line: " + str(i.get_line()) + " offset: " + str(i.get_line_offset()))
-            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_line_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
-            proc = ProcessRunner(cmd)
-            proc.connect('finished', self.on_synctex_finished)
+#            cmd = ['/usr/bin/synctex', 'view', '-i', str(i.get_line()) + ":" + str(i.get_line_offset()) + ":" + self.docmanager.tex, '-o', self.docmanager.pdf]
+#            proc = ProcessRunner(cmd)
+#            proc.connect('finished', self.on_synctex_finished)
         else: 
             print("Compile failed")
             print("output:\n ------------------------- \n"+sender.stdout)
             print("err\n-------------------\n"+sender.stderr)
     
-        
+    """    
     def on_synctex_finished(self,sender):
         if sender.result == 0:
             print("Synctex finished successfully")
@@ -229,6 +240,18 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Page: " + str(page) + " x: " + str(x) + " y: " + str(y))
         else:
             print("Synctex failed")
+    """  
+            
+    def on_sync_source(self,sender,sourcelink):
+        line = sourcelink.line -1
+        col = sourcelink.col
+        print("Synctex edit. Line: " + str(line) + " col: " + str(col))
+        if col <0:
+            col=0
+        it = self.buffer.get_iter_at_line_offset(line,col)
+        self.buffer.place_cursor(it)
+        self.sourceview.scroll_to_iter(it,0,False,0,0)
+        self.sourceview.grab_focus()
         
             
 
