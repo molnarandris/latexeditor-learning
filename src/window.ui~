@@ -3,11 +3,6 @@
 <interface>
   <requires lib="gtk+" version="3.20"/>
   <requires lib="gtksourceview" version="4.0"/>
-  <object class="GtkFileFilter" id="Text files">
-    <mime-types>
-      <mime-type>plain/text</mime-type>
-    </mime-types>
-  </object>
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
@@ -74,11 +69,12 @@
                 <property name="left_margin">2</property>
                 <property name="right_margin">2</property>
                 <property name="monospace">True</property>
-                <property name="show_line_numbers">True</property>
+                <property name="show_line_marks">True</property>
                 <property name="tab_width">4</property>
                 <property name="indent_width">4</property>
                 <property name="auto_indent">True</property>
                 <property name="insert_spaces_instead_of_tabs">True</property>
+                <property name="highlight_current_line">True</property>
               </object>
             </child>
           </object>
@@ -103,6 +99,7 @@
               <packing>
                 <property name="name">pdf</property>
                 <property name="title" translatable="yes">PDF</property>
+                <property name="icon_name">org.gnome.Evince-symbolic</property>
               </packing>
             </child>
             <child>
@@ -121,6 +118,7 @@
               <packing>
                 <property name="name">log</property>
                 <property name="title" translatable="yes">LOG</property>
+                <property name="icon_name">org.gnome.Logs-symbolic</property>
                 <property name="position">1</property>
               </packing>
             </child>
@@ -167,8 +165,6 @@
           <object class="GtkStackSwitcher">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="homogeneous">True</property>
-            <property name="icon_size">0</property>
             <property name="stack">view_stack</property>
           </object>
           <packing>
@@ -179,37 +175,9 @@
       </object>
     </child>
   </template>
-  <object class="GtkFileChooserDialog" id="open_dialog">
-    <property name="can_focus">False</property>
-    <property name="type_hint">dialog</property>
-    <property name="transient_for">MathwriterWindow</property>
-    <property name="filter">Text files</property>
-    <child internal-child="vbox">
-      <object class="GtkBox">
-        <property name="can_focus">False</property>
-        <property name="orientation">vertical</property>
-        <property name="spacing">2</property>
-        <child internal-child="action_area">
-          <object class="GtkButtonBox">
-            <property name="can_focus">False</property>
-            <property name="layout_style">end</property>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">False</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
-          <placeholder/>
-        </child>
-      </object>
-    </child>
+  <object class="GtkFileFilter" id="text_filter">
+    <mime-types>
+      <mime-type>plain/text</mime-type>
+    </mime-types>
   </object>
 </interface>

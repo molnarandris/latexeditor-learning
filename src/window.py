@@ -1,16 +1,11 @@
-import gi
-import os
-import re
+import gi, os, re
 
-from gi.repository import Gtk
-from gi.repository import Gdk
-from gi.repository import Gio,GLib
-from gi.repository import GObject
-#from .documentmanager import Documentmanager
+from gi.repository import Gtk, Gdk, Gio, GLib, GObject
 from .processrunner import ProcessRunner
 
 gi.require_version('GtkSource', '3.0')
 from gi.repository import GtkSource
+
 gi.require_version('EvinceDocument', '3.0')
 gi.require_version('EvinceView', '3.0')
 from gi.repository import EvinceDocument, EvinceView
@@ -98,6 +93,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
     pdf_scroll = Gtk.Template.Child()
+    log_view   = Gtk.Template.Child()
+    view_stack = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -110,6 +107,12 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.pdf_viewer.set_model(model)
         self.pdf_viewer.model = model
         self.pdf_scroll.add(self.pdf_viewer)
+        # EvinceView emits sync-source on CTRL+left click, I cannot change that. (It's hard-coded.)
+        # To have better synctex support (not only line), 
+        # one has to either preprocess the tex file before compile to contain more rows,
+        # or intercept CTRL+click, look for the word under the pointer
+        # And then find that in the current line
+        self.pdf_viewer.connect("sync-source",self.on_sync_source)
         
         
         # Get different components from .ui file and add the rest
@@ -117,14 +120,10 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
         self.tex = None
-        #self.docmanager = Documentmanager(self, self.buffer, self.pdf_viewer)
+
+        self.log_buffer = self.log_view.get_buffer()
+        
         self.state_saver = WindowStateSaver(self)
-        # EvinceView emits sync-source on CTRL+left click, I cannot change that. (It's hard-coded.)
-        # To have better synctex support (not only line), 
-        # one has to either preprocess the tex file before compile to contain more rows,
-        # or intercept CTRL+click, look for the word under the pointer
-        # And then find that in the current line
-        self.pdf_viewer.connect("sync-source",self.on_sync_source)
         # Add actions
         self.makeactions()
         # Without this, the pdf viewer does not show
@@ -168,12 +167,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Loading the tex file finished succesfully.")
             self.header_bar.set_subtitle(filename)
             self.state_saver.on_file_save(filename)
-            pdfname = os.path.splitext(filename)[0] + '.pdf'
-            #should do error check here. 
-            pdf = Gio.File.new_for_path(pdfname)
-            pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
-            pdf_loader.connect("finished", self.on_pdf_load_finished)
-            pdf_loader.run()
+            self.pdf_reload()
         else:
             msg = "File loading failed"
             dialog = Gtk.MessageDialog(
@@ -184,7 +178,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 msg,)
             dialog.run()
             dialog.destroy()
+            
+    def pdf_reload(self):
+            pdfname = os.path.splitext(self.tex)[0] + '.pdf'
+            #should do error check here. 
+            pdf = Gio.File.new_for_path(pdfname)
+            pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
+            pdf_loader.connect("finished", self.on_pdf_load_finished)
+            pdf_loader.run()
         
+    
     def on_pdf_load_finished(self,job):
         if job.is_failed():
             print("Loading the Pdf has failed")
@@ -235,21 +238,35 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         proc.connect('finished', self.on_compile_finished)
 
     def on_compile_finished(self,sender):
+        logname = os.path.splitext(self.tex)[0] + '.log'
+        l = GtkSource.File.new()
+        l.set_location(Gio.File.new_for_path(logname))
+        log_loader = GtkSource.FileLoader.new(self.log_buffer,l)
+        log_loader.load_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_log_load_finished,None)
+        
         if sender.result == 0:
-            print("Compile succesful")
-            self.pdf_viewer.reload()
+            # Compilation was successful
+            self.pdf_reload()
+            self.view_stack.set_visible_child_name("pdf")
             i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
             sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
             self.pdf_viewer.highlight_forward_search(sl)
+            # I should undo the highlight... Goes away by click, I don't know how to get rid of it without click.
         else: 
+            # Compilation failed
             print("Compile failed")
             print("output:\n ------------------------- \n"+sender.stdout)
             print("err\n-------------------\n"+sender.stderr)
+            self.view_stack.set_visible_child_name("log")
+    
+    def on_log_load_finished(self, loader, result, data):
+        loader.load_finish(result)
+        print("Log loading finished")
+        
             
     def on_sync_source(self,sender,sourcelink):
         line = sourcelink.line -1
         col = sourcelink.col
-        print("Synctex edit. Line: " + str(line) + " col: " + str(col))
         if col <0:
             col=0
         it = self.buffer.get_iter_at_line_offset(line,col)
