@@ -3,6 +3,7 @@ import gi, os, re
 from gi.repository import Gtk, Gdk, Gio, GLib, GObject
 from .processrunner import ProcessRunner
 from .completion import LatexCompletionProvider
+#from .logparser import LatexLogParser
 
 gi.require_version('GtkSource', '4')
 from gi.repository import GtkSource
@@ -275,9 +276,23 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         else: 
             # Compilation failed
             print("Compile failed")
-            print("output:\n ------------------------- \n"+sender.stdout)
-            print("err\n-------------------\n"+sender.stderr)
+            print("output:\n ------------------------- \n"+sender.stdout+"\n-------------------------")
+            #print("err\n-------------------\n"+sender.stderr)
             self.view_stack.set_visible_child_name("log")
+            # regexp looking for errors in latexmk output
+            r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
+            m = re.search(r,sender.stdout)
+            if m:
+                print(m.group(1))
+                print(m.group(2))
+                print(m.group(3))
+                it = self.buffer.get_iter_at_line_offset(int(m.group(2))-1,0)
+                self.buffer.place_cursor(it)
+                self.sourceview.scroll_to_iter(it,0,False,0,0)
+                self.sourceview.grab_focus()                
+            else:
+                print("did not find regexp")
+            
     
     # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
