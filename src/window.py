@@ -2,8 +2,9 @@ import gi, os, re
 
 from gi.repository import Gtk, Gdk, Gio, GLib, GObject
 from .processrunner import ProcessRunner
+from .completion import LatexCompletionProvider
 
-gi.require_version('GtkSource', '3.0')
+gi.require_version('GtkSource', '4')
 from gi.repository import GtkSource
 
 gi.require_version('EvinceDocument', '3.0')
@@ -44,7 +45,8 @@ class WindowStateSaver:
         win.paned.set_position(self.current_paned_pos*self.current_width)
         if self.current_file != "":
             win.on_tex_open(None,self.current_file)
-        
+    
+    # Hmm, so far I call this externally. I don't like it. Should be automatic.    
     def on_file_save(self,f):
         self.current_file = f
 
@@ -79,7 +81,7 @@ class WindowStateSaver:
         return False
 
 
-
+# Now this is the main window that is being displayed.
 @Gtk.Template(filename="src/window.ui")
 class MathwriterWindow(Gtk.ApplicationWindow):
     __gtype_name__ = 'MathwriterWindow'
@@ -88,7 +90,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     GObject.type_register(GtkSource.View)
     #GObject.type_register(PdfViewer)
 
-    # import all
+    # import all used components from the template
     sourceview = Gtk.Template.Child()
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
@@ -120,6 +122,11 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         lang_manager = GtkSource.LanguageManager()
         self.buffer.set_language(lang_manager.get_language('latex'))
         self.tex = None
+        # Adding the command completion. So far it just completes \begin{equation}. 
+        self.completion = self.sourceview.get_completion()
+        latex_completion_provider = LatexCompletionProvider()
+        self.completion.add_provider(latex_completion_provider)
+        self.latex_completion_provider = latex_completion_provider        
 
         self.log_buffer = self.log_view.get_buffer()
         
@@ -160,6 +167,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         loader = GtkSource.FileLoader.new(self.buffer,f)
         loader.load_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_tex_open_finish,None)
 
+    # Callback for GtkSource to finish the async loading of the latex file
     def on_tex_open_finish(self,loader,result,data):
         if loader.load_finish(result):
             filename = loader.get_location().get_path()
@@ -179,6 +187,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             dialog.run()
             dialog.destroy()
             
+    # Reload the pdf. 
     def pdf_reload(self):
             pdfname = os.path.splitext(self.tex)[0] + '.pdf'
             #should do error check here. 
@@ -187,7 +196,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             pdf_loader.connect("finished", self.on_pdf_load_finished)
             pdf_loader.run()
         
-    
+    # Callback for Evince's async pdf loader.
     def on_pdf_load_finished(self,job):
         if job.is_failed():
             print("Loading the Pdf has failed")
@@ -215,11 +224,17 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         saver = GtkSource.FileSaver.new(self.buffer,f)
         saver.save_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_save_finished,None)
 
+    # Callback for GtkSource's async file saver. Saves the latex file.
     def on_save_finished(self,source,result,data):
-        if source.save_finish(result): 
+        # Did the file saving succeed?
+        if source.save_finish(result):
+            # Set the self.tex field to point to the tex file 
             self.tex = source.get_location().get_path()
+            # And display the filename in the subtitle of the window
             self.header_bar.set_subtitle(self.tex)
         else:
+            # File saving failed, tell the user about it but do nothing else.
+            msg = "File saving failed"
             dialog = Gtk.MessageDialog(
                 self,
                 0,
@@ -228,7 +243,9 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 msg,)
             dialog.run()
             dialog.destroy()
-
+            
+    # The callback when compilation requested. Wired into the compile button 
+    # in the UI. 
     def on_compile(self, action, value):
         self.on_save(action, value)
         directory = os.path.dirname(self.tex)
@@ -237,7 +254,10 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         proc = ProcessRunner(cmd)
         proc.connect('finished', self.on_compile_finished)
 
+    # Callback for the compile async processrunner: 
+    # gets called when the compilation is finished. 
     def on_compile_finished(self,sender):
+        # load the log file.
         logname = os.path.splitext(self.tex)[0] + '.log'
         l = GtkSource.File.new()
         l.set_location(Gio.File.new_for_path(logname))
@@ -259,12 +279,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("err\n-------------------\n"+sender.stderr)
             self.view_stack.set_visible_child_name("log")
     
+    # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
         loader.load_finish(result)
         print("Log loading finished")
         
             
+    # callback for Evince doing Synctex from pdf to source.
+    # Go to the corresponding line. This needs to be refined. 
     def on_sync_source(self,sender,sourcelink):
+        # Fix the line numbering.
         line = sourcelink.line -1
         col = sourcelink.col
         if col <0:
@@ -274,6 +298,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.sourceview.scroll_to_iter(it,0,False,0,0)
         self.sourceview.grab_focus()
         
+    # Set up Actions, add shortcuts to it. 
     def makeactions(self):
         action = Gio.SimpleAction.new('compile', None)
         action.connect('activate', self.on_compile)
