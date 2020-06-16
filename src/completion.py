@@ -23,7 +23,7 @@ def IS_WHITE_SPACE(ch,data):
         return True
     else:
         return False
-
+        
 class LatexCompletionProvider(GObject.GObject, GtkSource.CompletionProvider):
     """
     This is a custom Completion Provider stolen from somewhere. So far it 
@@ -72,9 +72,16 @@ class LatexCompletionProvider(GObject.GObject, GtkSource.CompletionProvider):
             proposals.append(
 	            GtkSource.CompletionItem(label='Equation', text='begin{equation}\n\n\\end{equation}', icon=None, info=None) 
             )
+            proposals.append(
+	            GtkSource.CompletionItem(label='Itemize', text='begin{itemize}\n\n\\end{itemize}', icon=None, info=None) 
+            )
         if re.match(context.text, "section"):
             proposals.append(
                 GtkSource.CompletionItem(label='Section', text='section{}', icon=None, info=None), 
+            )
+        if re.match(context.text, "subsection"):
+            proposals.append(
+                GtkSource.CompletionItem(label='Subsection', text='subsection{}', icon=None, info=None), 
             )
             
         context.add_proposals(self, proposals, True)

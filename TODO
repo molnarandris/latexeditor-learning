@@ -9,11 +9,7 @@
 *Concrete but not so urgent
 
   - Some nicer way for the state saver, saving the current file is function calling. Maybe rewrite it to signals.
-  - Synctex is not ready. 
-    - Highlight line in editor
-    - highlight region in pdf
-    - Synctex backwards through command line never worked: offset is always 0.
-    - Something is still a bit off with synctex forward. 
+  - Customize Synctex. Missing Evince functions?? 
  
 *Future plans
 
@@ -24,3 +20,9 @@
   - Render tikz inline
   - Some drawing thing
   - Possibly a wysiwyg latex editing widget
+  
+* Parser
+
+  - For completion etc. need some kind of parsing.
+  - It shuld do incomplete stuff etc.
+  - Should translate between DOM and position in the buffer.

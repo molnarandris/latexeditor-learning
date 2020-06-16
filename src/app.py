@@ -10,6 +10,7 @@ from .window import MathwriterWindow
 def quit(app):
     for win in app.get_windows(): win.close()
 
+# Actions tied to the window
 def makeactions(app):
     close_action = Gio.SimpleAction.new('close', None)
     close_action.connect('activate', lambda action, param: quit(app))

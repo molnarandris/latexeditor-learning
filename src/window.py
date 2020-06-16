@@ -280,6 +280,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             #print("err\n-------------------\n"+sender.stderr)
             self.view_stack.set_visible_child_name("log")
             # regexp looking for errors in latexmk output
+            # Error should be a line starting with ! and sometime later another starting with something like l.23, where 23 is the line 
             r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
             m = re.search(r,sender.stdout)
             if m:
