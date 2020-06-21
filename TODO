@@ -1,8 +1,8 @@
 *Next things to do
 
+  - Highlight line with error in red. Remove the highlight at the next compilation. 
+    I guess have to look up how these things are done in textview. Should be something with the tag table. 
   - Refine the basic command completion. Understand more how it works.
-  - Log parsing: Errors start with !
-  - Mark errors in source
   
 
 

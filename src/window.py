@@ -12,6 +12,8 @@ gi.require_version('EvinceDocument', '3.0')
 gi.require_version('EvinceView', '3.0')
 from gi.repository import EvinceDocument, EvinceView
 
+# for gutter icon rendering
+import cairo
 
 # Saving and reloading window geometry with Gio.settings
 class WindowStateSaver:
@@ -250,6 +252,11 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     def on_compile(self, action, value):
         self.on_save(action, value)
         directory = os.path.dirname(self.tex)
+        # remove the inserted error marks.
+        self.buffer.remove_source_marks(
+            self.buffer.get_start_iter(),
+            self.buffer.get_end_iter(),
+            "error")
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
                '-pdf', '-halt-on-error', '-output-directory=' + directory, self.tex]
         proc = ProcessRunner(cmd)
@@ -276,7 +283,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         else: 
             # Compilation failed
             print("Compile failed")
-            print("output:\n ------------------------- \n"+sender.stdout+"\n-------------------------")
+            #print("output:\n ------------------------- \n"+sender.stdout+"\n-------------------------")
             #print("err\n-------------------\n"+sender.stderr)
             self.view_stack.set_visible_child_name("log")
             # regexp looking for errors in latexmk output
@@ -287,12 +294,15 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 print(m.group(1))
                 print(m.group(2))
                 print(m.group(3))
-                it = self.buffer.get_iter_at_line_offset(int(m.group(2))-1,0)
+                line = int(m.group(2))-1
+                self.create_marks()
+                self.place_mark(line)
+                it = self.buffer.get_iter_at_line_offset(line,0)
                 self.buffer.place_cursor(it)
-                self.sourceview.scroll_to_iter(it,0,False,0,0)
+                self.sourceview.scroll_to_iter(it,0,True,0,0.5)
                 self.sourceview.grab_focus()                
             else:
-                print("did not find regexp")
+                print("did not find Error regexp")
             
     
     # Callback for the async log loader. For now, it does nothing.
@@ -330,4 +340,38 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         action.connect('activate', self.on_save)
         self.add_action(action)
         self.get_application().set_accels_for_action('win.save', ['<ctrl>s'])
+        
+    ###########################################################################
+    # Experimental: add mark on gutter
+    def get_fold_plus_pixbuf(self):
+            w = 24
+            h = 24
+            surface = cairo.ImageSurface (cairo.FORMAT_ARGB32, w, h)
+            cr = cairo.Context (surface)
+            cr.set_source_rgb(0., 0., 0.)
+            cr.rectangle(0,0,w,h)
+            cr.fill()
 
+            cr.set_source_rgb(0.94, 0.94, 0.94)
+            cr.move_to (w/5.,h/2.)
+            cr.line_to (w*0.8,h/2.)
+            cr.stroke ()
+
+            cr.move_to (w/2.,h/5.)
+            cr.line_to (w/2.,h*0.8)
+            cr.stroke ()
+
+            pixbuf = Gdk.pixbuf_get_from_surface(surface,0,0,w,h)
+            return pixbuf    
+            
+    # This creates the mark to place in the gutter. Should be called on init.         
+    def create_marks(self):
+            pixbuf = self.get_fold_plus_pixbuf()
+            mark_attr = GtkSource.MarkAttributes.new()
+            mark_attr.set_pixbuf(pixbuf)
+            self.sourceview.set_mark_attributes("error",mark_attr,0)            
+
+    # To place the icon in the gutter
+    def place_mark(self,line):
+            iter = self.buffer.get_iter_at_line (line)
+            self.buffer.create_source_mark(None, "error", iter) 
