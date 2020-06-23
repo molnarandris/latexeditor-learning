@@ -257,6 +257,11 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             self.buffer.get_start_iter(),
             self.buffer.get_end_iter(),
             "error")
+        self.buffer.remove_tag_by_name(
+            "error",
+            self.buffer.get_start_iter(),
+            self.buffer.get_end_iter()
+        )
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
                '-pdf', '-halt-on-error', '-output-directory=' + directory, self.tex]
         proc = ProcessRunner(cmd)
@@ -293,7 +298,9 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             if m:
                 print(m.group(1))
                 print(m.group(2))
-                print(m.group(3))
+                text = m.group(3)[4:]
+                print(text)
+
                 line = int(m.group(2))-1
                 self.create_marks()
                 self.place_mark(line)
@@ -301,6 +308,14 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 self.buffer.place_cursor(it)
                 self.sourceview.scroll_to_iter(it,0,True,0,0.5)
                 self.sourceview.grab_focus()                
+                self.buffer.create_tag("error", background ="#ff6666")
+                limit = self.buffer.get_iter_at_line_offset(line+1,0)
+                result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
+                if result:
+                    match_start,match_end = result
+                    self.buffer.apply_tag_by_name("error",match_start,match_end)
+                else: 
+                    print("no result")
             else:
                 print("did not find Error regexp")
             
@@ -344,34 +359,36 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     ###########################################################################
     # Experimental: add mark on gutter
     def get_fold_plus_pixbuf(self):
-            w = 24
-            h = 24
-            surface = cairo.ImageSurface (cairo.FORMAT_ARGB32, w, h)
-            cr = cairo.Context (surface)
-            cr.set_source_rgb(0., 0., 0.)
-            cr.rectangle(0,0,w,h)
-            cr.fill()
+        w = 24
+        h = 24
+        surface = cairo.ImageSurface (cairo.FORMAT_ARGB32, w, h)
+        cr = cairo.Context (surface)
+        cr.set_source_rgb(0., 0., 0.)
+        cr.rectangle(0,0,w,h)
+        cr.fill()
 
-            cr.set_source_rgb(0.94, 0.94, 0.94)
-            cr.move_to (w/5.,h/2.)
-            cr.line_to (w*0.8,h/2.)
-            cr.stroke ()
+        cr.set_source_rgb(0.94, 0.94, 0.94)
+        cr.move_to (w/5.,h/2.)
+        cr.line_to (w*0.8,h/2.)
+        cr.stroke ()
 
-            cr.move_to (w/2.,h/5.)
-            cr.line_to (w/2.,h*0.8)
-            cr.stroke ()
+        cr.move_to (w/2.,h/5.)
+        cr.line_to (w/2.,h*0.8)
+        cr.stroke ()
 
-            pixbuf = Gdk.pixbuf_get_from_surface(surface,0,0,w,h)
-            return pixbuf    
+        pixbuf = Gdk.pixbuf_get_from_surface(surface,0,0,w,h)
+        return pixbuf    
             
     # This creates the mark to place in the gutter. Should be called on init.         
     def create_marks(self):
-            pixbuf = self.get_fold_plus_pixbuf()
-            mark_attr = GtkSource.MarkAttributes.new()
-            mark_attr.set_pixbuf(pixbuf)
-            self.sourceview.set_mark_attributes("error",mark_attr,0)            
+        icon_theme = Gtk.IconTheme.get_default()
+        pixbuf = icon_theme.load_icon("dialog-error",24,0)
+        #pixbuf = self.get_fold_plus_pixbuf()
+        mark_attr = GtkSource.MarkAttributes.new()
+        mark_attr.set_pixbuf(pixbuf)
+        self.sourceview.set_mark_attributes("error",mark_attr,0)            
 
     # To place the icon in the gutter
     def place_mark(self,line):
-            iter = self.buffer.get_iter_at_line (line)
-            self.buffer.create_source_mark(None, "error", iter) 
+        iter = self.buffer.get_iter_at_line (line)
+        self.buffer.create_source_mark(None, "error", iter) 
