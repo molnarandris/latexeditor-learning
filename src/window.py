@@ -15,75 +15,6 @@ from gi.repository import EvinceDocument, EvinceView
 # for gutter icon rendering
 import cairo
 
-# Saving and reloading window geometry with Gio.settings
-class WindowStateSaver:
-    def __init__(self, win):
-
-        win.connect("destroy", self.on_destroy)
-        win.connect("size-allocate", self.on_size_allocate)
-        win.connect("window-state-event", self.on_window_state_event)
-        win.paned.connect("size-allocate", self.on_handle_move)
-
-        # Get window geometry from settings
-        settings = Gio.Settings.new(
-            "com.github.molnarandris.latexeditor.window-state"
-        )
-        self.current_width = settings.get_int("width")
-        self.current_height = settings.get_int("height")
-        self.current_maximized = settings.get_boolean('maximized')
-        self.current_fullscreen = settings.get_boolean('fullscreen')
-        self.current_paned_pos = settings.get_double("paned-position")
-        self.current_file = settings.get_string("file")
-
-        # Set window geometry
-        # FIXME: if saved maximized, the unmaximize does not work well.
-        # I guess have to set the position first or something...
-        win.set_default_size(self.current_width, self.current_height)
-        if self.current_maximized:
-            win.maximize()
-        if self.current_fullscreen:
-            win.fullscreen()
-        # Careful, after setting maximized: stored the previous state...
-        # Ok, no control over order...
-        win.paned.set_position(self.current_paned_pos*self.current_width)
-        if self.current_file != "":
-            win.on_tex_open(None,self.current_file)
-    
-    # Hmm, so far I call this externally. I don't like it. Should be automatic.    
-    def on_file_save(self,f):
-        self.current_file = f
-
-    def on_handle_move(self, widget, event):
-        self.current_paned_pos = widget.get_position()/widget.get_allocated_width()
-        return False
-
-    def on_window_state_event(self, widget, event):
-        state = event.get_window().get_state()
-        self.current_maximized = bool(state & Gdk.WindowState.MAXIMIZED)
-        self.current_fullscreen = bool(state & Gdk.WindowState.FULLSCREEN)
-        return False
-
-    def on_size_allocate(self, widget, allocation):
-        # if not (self.current_maximized or self.current_fullscreen):
-        self.current_width, self.current_height = widget.get_size()
-        return False
-
-    # On destroy, save window state. Note that at destroy one should not use
-    # window.get_size() and so. This is why the current geometry properties.
-    # Panded position needs extra care. We want to save it as percentage maybe.
-    def on_destroy(self, widget):
-        settings = Gio.Settings.new(
-            "com.github.molnarandris.latexeditor.window-state"
-        )
-        settings.set_int("width", self.current_width)
-        settings.set_int("height", self.current_height)
-        settings.set_boolean("maximized", self.current_maximized)
-        settings.set_boolean("fullscreen", self.current_fullscreen)
-        settings.set_double("paned-position", self.current_paned_pos)
-        settings.set_string("file", self.current_file)
-        return False
-
-
 # Now this is the main window that is being displayed.
 @Gtk.Template(filename="src/window.ui")
 class MathwriterWindow(Gtk.ApplicationWindow):
@@ -357,27 +288,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.get_application().set_accels_for_action('win.save', ['<ctrl>s'])
         
     ###########################################################################
-    # Experimental: add mark on gutter
-    def get_fold_plus_pixbuf(self):
-        w = 24
-        h = 24
-        surface = cairo.ImageSurface (cairo.FORMAT_ARGB32, w, h)
-        cr = cairo.Context (surface)
-        cr.set_source_rgb(0., 0., 0.)
-        cr.rectangle(0,0,w,h)
-        cr.fill()
-
-        cr.set_source_rgb(0.94, 0.94, 0.94)
-        cr.move_to (w/5.,h/2.)
-        cr.line_to (w*0.8,h/2.)
-        cr.stroke ()
-
-        cr.move_to (w/2.,h/5.)
-        cr.line_to (w/2.,h*0.8)
-        cr.stroke ()
-
-        pixbuf = Gdk.pixbuf_get_from_surface(surface,0,0,w,h)
-        return pixbuf    
             
     # This creates the mark to place in the gutter. Should be called on init.         
     def create_marks(self):
@@ -392,3 +302,75 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     def place_mark(self,line):
         iter = self.buffer.get_iter_at_line (line)
         self.buffer.create_source_mark(None, "error", iter) 
+        
+        
+# Saving and reloading window geometry with Gio.settings
+class WindowStateSaver:
+    def __init__(self, win):
+
+        win.connect("destroy", self.on_destroy)
+        win.connect("size-allocate", self.on_size_allocate)
+        win.connect("window-state-event", self.on_window_state_event)
+        win.paned.connect("size-allocate", self.on_handle_move)
+
+        # Get window geometry from settings
+        settings = Gio.Settings.new(
+            "com.github.molnarandris.latexeditor.window-state"
+        )
+        self.current_width = settings.get_int("width")
+        self.current_height = settings.get_int("height")
+        self.current_maximized = settings.get_boolean('maximized')
+        self.current_fullscreen = settings.get_boolean('fullscreen')
+        self.current_paned_pos = settings.get_double("paned-position")
+        self.current_file = settings.get_string("file")
+
+        # Set window geometry
+        # FIXME: if saved maximized, the unmaximize does not work well.
+        # I guess have to set the position first or something...
+        win.set_default_size(self.current_width, self.current_height)
+        if self.current_maximized:
+            win.maximize()
+        if self.current_fullscreen:
+            win.fullscreen()
+        # Careful, after setting maximized: stored the previous state...
+        # Ok, no control over order...
+        win.paned.set_position(self.current_paned_pos*self.current_width)
+        if self.current_file != "":
+            win.on_tex_open(None,self.current_file)
+    
+    # Hmm, so far I call this externally. I don't like it. Should be automatic.    
+    def on_file_save(self,f):
+        self.current_file = f
+
+    def on_handle_move(self, widget, event):
+        self.current_paned_pos = widget.get_position()/widget.get_allocated_width()
+        return False
+
+    def on_window_state_event(self, widget, event):
+        state = event.get_window().get_state()
+        self.current_maximized = bool(state & Gdk.WindowState.MAXIMIZED)
+        self.current_fullscreen = bool(state & Gdk.WindowState.FULLSCREEN)
+        return False
+
+    def on_size_allocate(self, widget, allocation):
+        # if not (self.current_maximized or self.current_fullscreen):
+        self.current_width, self.current_height = widget.get_size()
+        return False
+
+    # On destroy, save window state. Note that at destroy one should not use
+    # window.get_size() and so. This is why the current geometry properties.
+    # Panded position needs extra care. We want to save it as percentage maybe.
+    def on_destroy(self, widget):
+        settings = Gio.Settings.new(
+            "com.github.molnarandris.latexeditor.window-state"
+        )
+        settings.set_int("width", self.current_width)
+        settings.set_int("height", self.current_height)
+        settings.set_boolean("maximized", self.current_maximized)
+        settings.set_boolean("fullscreen", self.current_fullscreen)
+        settings.set_double("paned-position", self.current_paned_pos)
+        settings.set_string("file", self.current_file)
+        return False
+
+
+        
