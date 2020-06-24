@@ -61,6 +61,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         latex_completion_provider = LatexCompletionProvider()
         self.completion.add_provider(latex_completion_provider)
         self.latex_completion_provider = latex_completion_provider        
+        self.create_marks()
 
         self.log_buffer = self.log_view.get_buffer()
         
@@ -218,23 +219,24 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             # I should undo the highlight... Goes away by click, I don't know how to get rid of it without click.
         else: 
             # Compilation failed
-            print("Compile failed")
-            #print("output:\n ------------------------- \n"+sender.stdout+"\n-------------------------")
-            #print("err\n-------------------\n"+sender.stderr)
             self.view_stack.set_visible_child_name("log")
             # regexp looking for errors in latexmk output
-            # Error should be a line starting with ! and sometime later another starting with something like l.23, where 23 is the line 
+            # Error should be a line starting with ! and sometime later 
+            # another starting with something like l.23, where 23 is the line 
             r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
             m = re.search(r,sender.stdout)
             if m:
-                print(m.group(1))
-                print(m.group(2))
+                msg  = m.group(0)
                 text = m.group(3)[4:]
-                print(text)
-
                 line = int(m.group(2))-1
-                self.create_marks()
-                self.place_mark(line)
+                icon_theme = Gtk.IconTheme.get_default()
+                # Error mark 
+                pixbuf = icon_theme.load_icon("dialog-error",24,0)
+                mark_attr = GtkSource.MarkAttributes.new()
+                mark_attr.set_pixbuf(pixbuf)
+                mark_attr.connect("query-tooltip-text", lambda obj,mark: msg)
+                self.sourceview.set_mark_attributes("error",mark_attr,0)                     
+                self.place_mark("error",line)
                 it = self.buffer.get_iter_at_line_offset(line,0)
                 self.buffer.place_cursor(it)
                 self.sourceview.scroll_to_iter(it,0,True,0,0.5)
@@ -245,11 +247,53 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 if result:
                     match_start,match_end = result
                     self.buffer.apply_tag_by_name("error",match_start,match_end)
-                else: 
-                    print("no result")
-            else:
-                print("did not find Error regexp")
-            
+    
+        # Find warnings in stdout. Both on failure and success.
+        print(sender.stdout)
+        r = re.compile("^Overfull.* ([0-9]+)\-\-[0-9]+\n",re.MULTILINE)
+        m = re.search(r,sender.stdout)
+        if m:
+            msg  = m.group(0)
+            line = int(m.group(1))-1
+            pixbuf = icon_theme.load_icon("dialog-warning",24,0)
+            mark_attr = GtkSource.MarkAttributes.new()
+            mark_attr.set_pixbuf(pixbuf)
+            mark_attr.connect("query-tooltip-text", lambda obj,mark: msg)
+            self.sourceview.set_mark_attributes("overfull-warning",mark_attr,0)                
+            self.place_mark("overfull-warning",line) 
+
+        r = re.compile("^LaTeX Warning: Reference `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
+        m = re.search(r,sender.stdout)
+        if m:
+            text = m.group(1)
+            text = "\\ref{" + text + "}"
+            line = int(m.group(2))-1
+            self.place_mark("warning",line)
+            it = self.buffer.get_iter_at_line_offset(line,0)
+            self.buffer.create_tag("warning", background ="#fae0a0")
+            limit = self.buffer.get_iter_at_line_offset(line+1,0)
+            result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
+            if result:
+                match_start,match_end = result
+                self.buffer.apply_tag_by_name("warning",match_start,match_end)
+
+        r = re.compile("^LaTeX Warning: Citation `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
+        m = re.search(r,sender.stdout)
+        if m:
+            text = m.group(1)
+            text = "\\cite{" + text + "}"
+            line = int(m.group(2))-1
+            self.place_mark("warning",line)
+            it = self.buffer.get_iter_at_line_offset(line,0)
+            self.buffer.create_tag("warning", background ="#fae0a0")
+            limit = self.buffer.get_iter_at_line_offset(line+1,0)
+            result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
+            if result:
+                match_start,match_end = result
+                self.buffer.apply_tag_by_name("warning",match_start,match_end)
+        else:
+            print("No warning found")
+
     
     # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
@@ -292,16 +336,22 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     # This creates the mark to place in the gutter. Should be called on init.         
     def create_marks(self):
         icon_theme = Gtk.IconTheme.get_default()
+        # Error mark 
         pixbuf = icon_theme.load_icon("dialog-error",24,0)
-        #pixbuf = self.get_fold_plus_pixbuf()
         mark_attr = GtkSource.MarkAttributes.new()
         mark_attr.set_pixbuf(pixbuf)
+        mark_attr.connect("query-tooltip-text", lambda obj,mark: "Error")
         self.sourceview.set_mark_attributes("error",mark_attr,0)            
+        # Warning mark
+        pixbuf = icon_theme.load_icon("dialog-warning",24,0)
+        mark_attr = GtkSource.MarkAttributes.new()
+        mark_attr.set_pixbuf(pixbuf)
+        self.sourceview.set_mark_attributes("warning",mark_attr,0)            
 
     # To place the icon in the gutter
-    def place_mark(self,line):
+    def place_mark(self,marktype,line):
         iter = self.buffer.get_iter_at_line (line)
-        self.buffer.create_source_mark(None, "error", iter) 
+        self.buffer.create_source_mark(None, marktype, iter) 
         
         
 # Saving and reloading window geometry with Gio.settings
