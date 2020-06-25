@@ -31,6 +31,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     pdf_scroll = Gtk.Template.Child()
     log_view   = Gtk.Template.Child()
     view_stack = Gtk.Template.Child()
+    log_list   = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -227,6 +228,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             m = re.search(r,sender.stdout)
             if m:
                 msg  = m.group(0)
+                typ  = m.group(1)
                 text = m.group(3)[4:]
                 line = int(m.group(2))-1
                 icon_theme = Gtk.IconTheme.get_default()
@@ -247,6 +249,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
                 if result:
                     match_start,match_end = result
                     self.buffer.apply_tag_by_name("error",match_start,match_end)
+                # Now add it to the log list 
+                row = Gtk.ListBoxRow()
+                hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+                row.add(hbox)
+                label1 = Gtk.Label("Error", xalign=0)
+                label2 = Gtk.Label(typ, xalign=0)
+                hbox.pack_start(label1, True, True, 0)
+                hbox.pack_start(label2, False, True, 0)
+                self.log_list.add(row)
+                self.log_list.show_all()
     
         # Find warnings in stdout. Both on failure and success.
         print(sender.stdout)
@@ -255,6 +267,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         if m:
             msg  = m.group(0)
             line = int(m.group(1))-1
+            icon_theme = Gtk.IconTheme.get_default()
             pixbuf = icon_theme.load_icon("dialog-warning",24,0)
             mark_attr = GtkSource.MarkAttributes.new()
             mark_attr.set_pixbuf(pixbuf)
@@ -276,6 +289,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             if result:
                 match_start,match_end = result
                 self.buffer.apply_tag_by_name("warning",match_start,match_end)
+            # Now add it to the log list 
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+            row.add(hbox)
+            label1 = Gtk.Label("Warning", xalign=0)
+            label2 = Gtk.Label("Undefined reference", xalign=0)
+            hbox.pack_start(label1, True, True, 0)
+            hbox.pack_start(label2, False, True, 0)
+            self.log_list.add(row)
+            self.log_list.show_all()
 
         r = re.compile("^LaTeX Warning: Citation `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
         m = re.search(r,sender.stdout)
@@ -291,6 +314,16 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             if result:
                 match_start,match_end = result
                 self.buffer.apply_tag_by_name("warning",match_start,match_end)
+            # Now add it to the log list 
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+            row.add(hbox)
+            label1 = Gtk.Label("Warning", xalign=0)
+            label2 = Gtk.Label("Undefined citation", xalign=0)
+            hbox.pack_start(label1, True, True, 0)
+            hbox.pack_start(label2, False, True, 0)
+            self.log_list.add(row)
+            self.log_list.show_all()                
         else:
             print("No warning found")
 

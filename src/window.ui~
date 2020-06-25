@@ -108,10 +108,11 @@
                 <property name="can_focus">True</property>
                 <property name="shadow_type">in</property>
                 <child>
-                  <object class="GtkTextView" id="log_view">
+                  <object class="GtkSourceView" id="log_view">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="monospace">True</property>
+                    <property name="left_margin">2</property>
+                    <property name="right_margin">2</property>
                   </object>
                 </child>
               </object>
