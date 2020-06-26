@@ -62,7 +62,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         latex_completion_provider = LatexCompletionProvider()
         self.completion.add_provider(latex_completion_provider)
         self.latex_completion_provider = latex_completion_provider        
-        self.create_marks()
 
         self.log_buffer = self.log_view.get_buffer()
         
@@ -71,6 +70,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.makeactions()
         # Without this, the pdf viewer does not show
         self.show_all()
+        
+        self.LogProcessor = LogProcessor(self.buffer,self.sourceview,self.log_list)
         
     # Open callback. If value is None, then do choose a file. Otherwise open value.
     def on_tex_open(self, action, value):
@@ -189,9 +190,9 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.buffer.remove_source_marks(
             self.buffer.get_start_iter(),
             self.buffer.get_end_iter(),
-            "error")
+            "Error")
         self.buffer.remove_tag_by_name(
-            "error",
+            "Error",
             self.buffer.get_start_iter(),
             self.buffer.get_end_iter()
         )
@@ -217,116 +218,13 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
             sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
             self.pdf_viewer.highlight_forward_search(sl)
-            # I should undo the highlight... Goes away by click, I don't know how to get rid of it without click.
+            # I should undo the highlight... Goes away by click, 
+            # I don't know how to get rid of it without click.
         else: 
             # Compilation failed
             self.view_stack.set_visible_child_name("log")
-            # regexp looking for errors in latexmk output
-            # Error should be a line starting with ! and sometime later 
-            # another starting with something like l.23, where 23 is the line 
-            r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
-            m = re.search(r,sender.stdout)
-            if m:
-                msg  = m.group(0)
-                typ  = m.group(1)
-                text = m.group(3)[4:]
-                line = int(m.group(2))-1
-                icon_theme = Gtk.IconTheme.get_default()
-                # Error mark 
-                pixbuf = icon_theme.load_icon("dialog-error",24,0)
-                mark_attr = GtkSource.MarkAttributes.new()
-                mark_attr.set_pixbuf(pixbuf)
-                mark_attr.connect("query-tooltip-text", lambda obj,mark: msg)
-                self.sourceview.set_mark_attributes("error",mark_attr,0)                     
-                self.place_mark("error",line)
-                it = self.buffer.get_iter_at_line_offset(line,0)
-                self.buffer.place_cursor(it)
-                self.sourceview.scroll_to_iter(it,0,True,0,0.5)
-                self.sourceview.grab_focus()                
-                self.buffer.create_tag("error", background ="#ff6666")
-                limit = self.buffer.get_iter_at_line_offset(line+1,0)
-                result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
-                if result:
-                    match_start,match_end = result
-                    self.buffer.apply_tag_by_name("error",match_start,match_end)
-                # Now add it to the log list 
-                row = Gtk.ListBoxRow()
-                hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-                row.add(hbox)
-                label1 = Gtk.Label("Error", xalign=0)
-                label2 = Gtk.Label(typ, xalign=0)
-                hbox.pack_start(label1, True, True, 0)
-                hbox.pack_start(label2, False, True, 0)
-                self.log_list.add(row)
-                self.log_list.show_all()
-    
-        # Find warnings in stdout. Both on failure and success.
-        print(sender.stdout)
-        r = re.compile("^Overfull.* ([0-9]+)\-\-[0-9]+\n",re.MULTILINE)
-        m = re.search(r,sender.stdout)
-        if m:
-            msg  = m.group(0)
-            line = int(m.group(1))-1
-            icon_theme = Gtk.IconTheme.get_default()
-            pixbuf = icon_theme.load_icon("dialog-warning",24,0)
-            mark_attr = GtkSource.MarkAttributes.new()
-            mark_attr.set_pixbuf(pixbuf)
-            mark_attr.connect("query-tooltip-text", lambda obj,mark: msg)
-            self.sourceview.set_mark_attributes("overfull-warning",mark_attr,0)                
-            self.place_mark("overfull-warning",line) 
 
-        r = re.compile("^LaTeX Warning: Reference `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
-        m = re.search(r,sender.stdout)
-        if m:
-            text = m.group(1)
-            text = "\\ref{" + text + "}"
-            line = int(m.group(2))-1
-            self.place_mark("warning",line)
-            it = self.buffer.get_iter_at_line_offset(line,0)
-            self.buffer.create_tag("warning", background ="#fae0a0")
-            limit = self.buffer.get_iter_at_line_offset(line+1,0)
-            result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
-            if result:
-                match_start,match_end = result
-                self.buffer.apply_tag_by_name("warning",match_start,match_end)
-            # Now add it to the log list 
-            row = Gtk.ListBoxRow()
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-            row.add(hbox)
-            label1 = Gtk.Label("Warning", xalign=0)
-            label2 = Gtk.Label("Undefined reference", xalign=0)
-            hbox.pack_start(label1, True, True, 0)
-            hbox.pack_start(label2, False, True, 0)
-            self.log_list.add(row)
-            self.log_list.show_all()
-
-        r = re.compile("^LaTeX Warning: Citation `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
-        m = re.search(r,sender.stdout)
-        if m:
-            text = m.group(1)
-            text = "\\cite{" + text + "}"
-            line = int(m.group(2))-1
-            self.place_mark("warning",line)
-            it = self.buffer.get_iter_at_line_offset(line,0)
-            self.buffer.create_tag("warning", background ="#fae0a0")
-            limit = self.buffer.get_iter_at_line_offset(line+1,0)
-            result = it.forward_search(text,Gtk.TextSearchFlags.TEXT_ONLY,limit)
-            if result:
-                match_start,match_end = result
-                self.buffer.apply_tag_by_name("warning",match_start,match_end)
-            # Now add it to the log list 
-            row = Gtk.ListBoxRow()
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-            row.add(hbox)
-            label1 = Gtk.Label("Warning", xalign=0)
-            label2 = Gtk.Label("Undefined citation", xalign=0)
-            hbox.pack_start(label1, True, True, 0)
-            hbox.pack_start(label2, False, True, 0)
-            self.log_list.add(row)
-            self.log_list.show_all()                
-        else:
-            print("No warning found")
-
+        self.LogProcessor.process(sender.stdout)
     
     # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
@@ -364,27 +262,92 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.add_action(action)
         self.get_application().set_accels_for_action('win.save', ['<ctrl>s'])
         
-    ###########################################################################
-            
-    # This creates the mark to place in the gutter. Should be called on init.         
-    def create_marks(self):
+###########################################################################
+# Processing the log file. TODO: change it to async. 
+
+
+class LogProcessor:
+    def __init__(self,buf,srcview,log_list):
+        self.log_list   = log_list
+        self.buffer     = buf
+        self.sourceview = srcview
+        
+        # The regexps to look for in the log file
+        self.badbox = re.compile("^Overfull.* ([0-9]+)\-\-[0-9]+\n",re.MULTILINE)
+        self.warn   = re.compile("^LaTeX Warning: (Reference|Citation) `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
+
+        # Setting up the marks to use
         icon_theme = Gtk.IconTheme.get_default()
         # Error mark 
         pixbuf = icon_theme.load_icon("dialog-error",24,0)
         mark_attr = GtkSource.MarkAttributes.new()
         mark_attr.set_pixbuf(pixbuf)
         mark_attr.connect("query-tooltip-text", lambda obj,mark: "Error")
-        self.sourceview.set_mark_attributes("error",mark_attr,0)            
+        self.sourceview.set_mark_attributes("Error",mark_attr,0)            
         # Warning mark
         pixbuf = icon_theme.load_icon("dialog-warning",24,0)
         mark_attr = GtkSource.MarkAttributes.new()
         mark_attr.set_pixbuf(pixbuf)
-        self.sourceview.set_mark_attributes("warning",mark_attr,0)            
+        mark_attr.connect("query-tooltip-text", lambda obj,mark: "Warning")
+        self.sourceview.set_mark_attributes("Warning",mark_attr,0)  
 
-    # To place the icon in the gutter
-    def place_mark(self,marktype,line):
-        iter = self.buffer.get_iter_at_line (line)
-        self.buffer.create_source_mark(None, marktype, iter) 
+        # tags to use
+        self.buffer.create_tag("Error", background ="#ff6666")
+        self.buffer.create_tag("Warning", background ="#fae0a0")
+    
+    def process(self,log):
+        r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
+        it = re.finditer(r,log)
+        place_cursor = True
+        for m in it:
+            msg    = m.group(1)
+            line   = int(m.group(2))-1
+            detail = m.group(3)[4:]
+            self.process_line(msg,line,detail,"Error",place_cursor)
+            place_cursor = False
+        
+        r = re.compile("^LaTeX Warning: (Reference|Citation) `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
+        it = re.finditer(r,log)
+        for m in it:
+            msg    = m.group(1)
+            msg    = "Undefined " + msg
+            line   = int(m.group(3))-1
+            detail = m.group(2)
+            self.process_line(msg,line,detail,"Warning",place_cursor)
+
+        r = re.compile("^Overfull.* ([0-9]+)\-\-[0-9]+\n",re.MULTILINE)
+        it = re.finditer(r,log)
+        for m in it:
+            msg    = "Overful hbox"
+            line   = int(m.group(1))-1
+            detail = ""
+            self.process_line(msg,line,detail,"Warning",place_cursor)
+
+        self.log_list.show_all()
+        
+    def process_line(self,msg,line,detail,typ,place_cursor):
+        it = self.buffer.get_iter_at_line_offset(line,0)
+        self.buffer.create_source_mark(None, typ, it) 
+        limit = self.buffer.get_iter_at_line_offset(line+1,0)
+        row = Gtk.ListBoxRow()
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+        row.add(hbox)
+        hbox.pack_start(Gtk.Label(typ, xalign=0), True, True, 0)
+        hbox.pack_start(Gtk.Label(msg, xalign=0), False, True, 0)
+        hbox.pack_start(Gtk.Label(detail, xalign=0), False, True, 0)
+        self.log_list.add(row)
+        if place_cursor:
+            self.buffer.place_cursor(it)
+            self.sourceview.scroll_to_iter(it,0,True,0,0.5)
+            self.sourceview.grab_focus()   
+        # Add the marks
+        if detail:
+            limit = self.buffer.get_iter_at_line_offset(line+1,0)
+            result = it.forward_search(detail,Gtk.TextSearchFlags.TEXT_ONLY,limit)
+            print(detail)
+            if result:
+                [start_it,end_it] = result
+                self.buffer.apply_tag_by_name(typ,start_it,end_it)             
         
         
 # Saving and reloading window geometry with Gio.settings
