@@ -265,6 +265,11 @@ class MathwriterWindow(Gtk.ApplicationWindow):
 ###########################################################################
 # Processing the log file. TODO: change it to async. 
 
+class ListBoxRowWithData(Gtk.ListBoxRow):
+    def __init__(self, data):
+        super(Gtk.ListBoxRow, self).__init__()
+        self.data = data
+
 
 class LogProcessor:
     def __init__(self,buf,srcview,log_list):
@@ -294,6 +299,8 @@ class LogProcessor:
         # tags to use
         self.buffer.create_tag("Error", background ="#ff6666")
         self.buffer.create_tag("Warning", background ="#fae0a0")
+
+        self.log_list.connect("row-activated", self.on_row_activated)
     
     def process(self,log):
         r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
@@ -329,7 +336,7 @@ class LogProcessor:
         it = self.buffer.get_iter_at_line_offset(line,0)
         self.buffer.create_source_mark(None, typ, it) 
         limit = self.buffer.get_iter_at_line_offset(line+1,0)
-        row = Gtk.ListBoxRow()
+        row = ListBoxRowWithData(line)
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
         row.add(hbox)
         hbox.pack_start(Gtk.Label(typ, xalign=0), True, True, 0)
@@ -347,7 +354,13 @@ class LogProcessor:
             print(detail)
             if result:
                 [start_it,end_it] = result
-                self.buffer.apply_tag_by_name(typ,start_it,end_it)             
+                self.buffer.apply_tag_by_name(typ,start_it,end_it)
+                
+    def on_row_activated(self,listbox,row):
+        it = self.buffer.get_iter_at_line_offset(row.data,0)
+        self.buffer.place_cursor(it)
+        self.sourceview.scroll_to_iter(it,0,True,0,0.5)
+        self.sourceview.grab_focus()   
         
         
 # Saving and reloading window geometry with Gio.settings
