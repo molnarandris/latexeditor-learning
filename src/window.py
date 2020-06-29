@@ -222,7 +222,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             # I don't know how to get rid of it without click.
         else: 
             # Compilation failed
-            self.view_stack.set_visible_child_name("log")
+            self.view_stack.set_visible_child_name("log_list")
 
         self.LogProcessor.process(sender.stdout)
     
@@ -317,9 +317,13 @@ class LogProcessor:
         it = re.finditer(r,log)
         for m in it:
             msg    = m.group(1)
-            msg    = "Undefined " + msg
             line   = int(m.group(3))-1
             detail = m.group(2)
+            if msg == "Reference":
+                detail = "\\ref{" + detail + "}"
+            else:
+                detail = "\\cite{" + detail + "}"
+            msg    = "Undefined " + msg
             self.process_line(msg,line,detail,"Warning",place_cursor)
 
         r = re.compile("^Overfull.* ([0-9]+)\-\-[0-9]+\n",re.MULTILINE)

@@ -142,8 +142,8 @@
                 </child>
               </object>
               <packing>
-                <property name="name">page0</property>
-                <property name="title" translatable="yes">page0</property>
+                <property name="name">log_list</property>
+                <property name="title" translatable="yes">log_list</property>
                 <property name="icon_name">org.gnome.Logs-symbolic</property>
                 <property name="position">2</property>
               </packing>
