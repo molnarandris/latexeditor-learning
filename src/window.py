@@ -186,16 +186,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     def on_compile(self, action, value):
         self.on_save(action, value)
         directory = os.path.dirname(self.tex)
-        # remove the inserted error marks.
-        self.buffer.remove_source_marks(
-            self.buffer.get_start_iter(),
-            self.buffer.get_end_iter(),
-            "Error")
-        self.buffer.remove_tag_by_name(
-            "Error",
-            self.buffer.get_start_iter(),
-            self.buffer.get_end_iter()
-        )
         cmd = ['/usr/bin/latexmk', '-synctex=1', '-interaction=nonstopmode',
                '-pdf', '-halt-on-error', '-output-directory=' + directory, self.tex]
         proc = ProcessRunner(cmd)
@@ -224,11 +214,13 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             # Compilation failed
             self.view_stack.set_visible_child_name("log_list")
 
-        self.LogProcessor.process(sender.stdout)
     
     # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
         loader.load_finish(result)
+        buf = loader.get_buffer()
+        log = buf.get_text(buf.get_start_iter(),buf.get_end_iter(),False)
+        self.LogProcessor.process(log)
         print("Log loading finished")
         
             
@@ -303,6 +295,7 @@ class LogProcessor:
         self.log_list.connect("row-activated", self.on_row_activated)
     
     def process(self,log):
+        self.clearup()
         r = re.compile("^! (.*)\nl\.([0-9]*)(.*?$)",re.MULTILINE|re.DOTALL)
         it = re.finditer(r,log)
         place_cursor = True
@@ -312,6 +305,7 @@ class LogProcessor:
             detail = m.group(3)[4:]
             self.process_line(msg,line,detail,"Error",place_cursor)
             place_cursor = False
+        place_cursor = False
         
         r = re.compile("^LaTeX Warning: (Reference|Citation) `(.*)'.* ([0-9]*)\.\n",re.MULTILINE)
         it = re.finditer(r,log)
@@ -335,6 +329,18 @@ class LogProcessor:
             self.process_line(msg,line,detail,"Warning",place_cursor)
 
         self.log_list.show_all()
+        
+    def clearup(self):
+        # remove the inserted error marks.
+        s = self.buffer.get_start_iter()
+        e = self.buffer.get_end_iter()
+        self.buffer.remove_source_marks(s, e, "Error")
+        self.buffer.remove_source_marks(s, e, "Warning")
+        self.buffer.remove_tag_by_name("Error", s, e)
+        self.buffer.remove_tag_by_name("Warning", s, e)
+        # Delete the list
+        self.log_list.foreach(self.log_list.remove)
+    
         
     def process_line(self,msg,line,detail,typ,place_cursor):
         it = self.buffer.get_iter_at_line_offset(line,0)
