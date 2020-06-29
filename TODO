@@ -1,8 +1,10 @@
 *Next things to do
 
-  - Highlight line with error in red. Remove the highlight at the next compilation. 
-    I guess have to look up how these things are done in textview. Should be something with the tag table. 
   - Refine the basic command completion. Understand more how it works.
+  - On file load, locate all \begin{equation}...\end{equation} and compile the equation 
+    to an image.
+  - Display the image in the buffer instead of the code
+  - When placing the cursor over the image change back to the code
   
 
 
@@ -13,8 +15,6 @@
  
 *Future plans
 
-  - Handling compilation errors
-  - Some kind of command completion
   - git support
   - Render equations inline
   - Render tikz inline
