@@ -6,6 +6,10 @@
   - Display the image in the buffer instead of the code
   - When placing the cursor over the image change back to the code
   
+  
+* Parsing
+
+I think the way to go is to parse the file, and insert tags into the buffer. Then at a given iter one can retreive all tags. What tags do we need? I think this will be refined as I program. Maybe some own hyerarachical tags are needed. For now, wrap the simple equations in a tag. Then I can manipulate how they get displayed.  
 
 
 *Concrete but not so urgent

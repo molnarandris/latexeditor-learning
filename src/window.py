@@ -372,7 +372,7 @@ class LogProcessor:
         self.sourceview.scroll_to_iter(it,0,True,0,0.5)
         self.sourceview.grab_focus()   
         
-        
+###########################################################################################        
 # Saving and reloading window geometry with Gio.settings
 class WindowStateSaver:
     def __init__(self, win):
