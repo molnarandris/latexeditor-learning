@@ -16,6 +16,46 @@ from gi.repository import GtkSource
     That's all. Everything else is taken care by this code (plus GtkSource).
 '''
 
+ENVIRONMENTS = [
+    'equation', 
+    'equation*', 
+    'itemize',
+    'enumerate',
+    'tikzpicture',
+]
+
+ENV_PROPOSALS = [ GtkSource.CompletionItem(
+        label = e,
+        text =  'begin{' + e + '}\n  •\n\\end{' + e +  '}',
+        icon = None,
+        info = None,  
+    )
+    for e in ENVIRONMENTS
+]
+
+SECTIONS = [
+    'part',
+    'chapter',
+    'section',
+    'subsection',
+    'subsubsection',
+    'paragraph'
+    'subparagraph',
+]
+
+SEC_PROPOSALS = [ GtkSource.CompletionItem(
+        label = s,
+        text =  '\\' + s + '{•}',
+        icon = None,
+        info = None,  
+    )
+    for s in SECTIONS
+]
+
+
+
+PROPOSALS = ENV_PROPOSALS + SEC_PROPOSALS
+
 # Just to remember what is whitespace. Used at callbacks wher I don't have control over 
 # the input, that's why the extra data input parameter.
 def IS_WHITE_SPACE(ch,data):
@@ -62,32 +102,11 @@ class LatexCompletionProvider(GObject.GObject, GtkSource.CompletionProvider):
 
     # This determines what is being shown. So filtering comes here.
     def do_populate(self, context):
-        proposals = [ ]
-        
-        # If the text contatins \, everything breaks. Let's not handle that situation.
-        if re.search("\\\\",context.text):
-            return
-        # If text is part of begin, show the begin proposal.
-        if re.match(context.text,"begin"):
-            proposals.append(
-	            GtkSource.CompletionItem(label='Equation', text='begin{equation}\n  •\n\\end{equation}', icon=None, info=None) 
-            )
-            proposals.append(
-	            GtkSource.CompletionItem(label='Itemize', text='begin{itemize}\n  •\n\\end{itemize}', icon=None, info=None) 
-            )
-        if re.match(context.text, "section"):
-            proposals.append(
-                GtkSource.CompletionItem(label='Section', text='section{•}', icon=None, info=None), 
-            )
-        if re.match(context.text, "subsection"):
-            proposals.append(
-                GtkSource.CompletionItem(label='Subsection', text='subsection{•}', icon=None, info=None), 
-            )
-            
+        proposals = [ p for p in PROPOSALS if p.get_text().startswith(context.text)]
         context.add_proposals(self, proposals, True)
         return
         
-    # Overweiring the match to find a dot in the proposal and 
+    # If matched, display proposal and set selection to around the dot.
     def do_activate_proposal(self,proposal,it):
         buf = it.get_buffer()
         mov_iter = it.copy()
