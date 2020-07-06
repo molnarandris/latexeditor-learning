@@ -1,3 +1,7 @@
+* Known Bugs
+  
+  - The synctex engine as a whole. Evince does not support easy customization. 
+
 *Next things to do
 
   - Refine the basic command completion. Understand more how it works.

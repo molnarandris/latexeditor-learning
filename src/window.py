@@ -112,7 +112,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Loading the tex file finished succesfully.")
             self.header_bar.set_subtitle(filename)
             self.state_saver.on_file_save(filename)
-            self.pdf_reload()
+            self.pdf_reload_sync()
         else:
             msg = "File loading failed"
             dialog = Gtk.MessageDialog(
@@ -124,14 +124,15 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             dialog.run()
             dialog.destroy()
             
-    # Reload the pdf. 
+    # Reload the pdf. This is the async version.
     def pdf_reload(self):
-            pdfname = os.path.splitext(self.tex)[0] + '.pdf'
-            #should do error check here. 
-            pdf = Gio.File.new_for_path(pdfname)
-            pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
-            pdf_loader.connect("finished", self.on_pdf_load_finished)
-            pdf_loader.run()
+        pdfname = os.path.splitext(self.tex)[0] + '.pdf'
+        #should do error check here. 
+        pdf = Gio.File.new_for_path(pdfname)
+        pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
+        pdf_loader.connect("finished", self.on_pdf_load_finished)
+        pdf_loader.run()
+    
         
     # Callback for Evince's async pdf loader.
     def on_pdf_load_finished(self,job):
@@ -139,6 +140,15 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             print("Loading the Pdf has failed")
         else:
             self.pdf_viewer.model.set_document(job.document)
+
+    # Reload the pdf. This is the sync version. 
+    def pdf_reload_sync(self):
+        pdfname = os.path.splitext(self.tex)[0] + '.pdf'
+        pdf = Gio.File.new_for_path(pdfname)
+        flags = EvinceDocument.DocumentLoadFlags.NONE
+        doc = EvinceDocument.Document.factory_get_document_for_gfile(pdf,flags,None)
+        self.pdf_viewer.model.set_document(doc)
+
             
     # If no file opened, then set the file with file chooser. Call file saver
     # of doc manager. The file writing can also fail. In that case, choose
@@ -203,7 +213,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         
         if sender.result == 0:
             # Compilation was successful
-            self.pdf_reload()
+            self.pdf_reload_sync() 
             self.synctex_fwd(None,None)
             # I should undo the highlight... Goes away by click, 
             # I don't know how to get rid of it without click.
