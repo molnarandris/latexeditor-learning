@@ -204,16 +204,19 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         if sender.result == 0:
             # Compilation was successful
             self.pdf_reload()
-            self.view_stack.set_visible_child_name("pdf")
-            i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
-            sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
-            self.pdf_viewer.highlight_forward_search(sl)
+            self.synctex_fwd(None,None)
             # I should undo the highlight... Goes away by click, 
             # I don't know how to get rid of it without click.
         else: 
             # Compilation failed
             self.view_stack.set_visible_child_name("log_list")
 
+    def synctex_fwd(self,action,value):
+        self.view_stack.set_visible_child_name("pdf")
+        i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
+        sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
+        self.pdf_viewer.highlight_forward_search(sl)
+        
     
     # Callback for the async log loader. For now, it does nothing.
     def on_log_load_finished(self, loader, result, data):
@@ -244,6 +247,11 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.add_action(action)
         self.get_application().set_accels_for_action('win.compile', ['F5'])
             
+        action = Gio.SimpleAction.new('synctex_fwd', None)
+        action.connect('activate', self.synctex_fwd)
+        self.add_action(action)
+        self.get_application().set_accels_for_action('win.synctex_fwd', ['F7'])
+
         action = Gio.SimpleAction.new('open', None)
         action.connect('activate', self.on_tex_open)
         self.add_action(action)
