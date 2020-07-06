@@ -240,27 +240,19 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.sourceview.scroll_to_iter(it,0,False,0,0)
         self.sourceview.grab_focus()
         
-    # Set up Actions, add shortcuts to it. 
+    # Convenience function for making an action
+    def makeoneaction(self,name,callback,shortcuts):
+        action = Gio.SimpleAction.new(name, None)
+        action.connect('activate', callback)
+        self.add_action(action)
+        self.get_application().set_accels_for_action('win.'+ name, shortcuts)
+
+    # Set up Actions, add shortcuts to it.     
     def makeactions(self):
-        action = Gio.SimpleAction.new('compile', None)
-        action.connect('activate', self.on_compile)
-        self.add_action(action)
-        self.get_application().set_accels_for_action('win.compile', ['F5'])
-            
-        action = Gio.SimpleAction.new('synctex_fwd', None)
-        action.connect('activate', self.synctex_fwd)
-        self.add_action(action)
-        self.get_application().set_accels_for_action('win.synctex_fwd', ['F7'])
-
-        action = Gio.SimpleAction.new('open', None)
-        action.connect('activate', self.on_tex_open)
-        self.add_action(action)
-        self.get_application().set_accels_for_action('win.open', ['<ctrl>o'])
-
-        action = Gio.SimpleAction.new('save', None)
-        action.connect('activate', self.on_save)
-        self.add_action(action)
-        self.get_application().set_accels_for_action('win.save', ['<ctrl>s'])
+        self.makeoneaction('compile', self.on_compile, ['F5'])
+        self.makeoneaction('synctex_fwd', self.synctex_fwd, ['F7'])
+        self.makeoneaction('open', self.on_tex_open, ['<ctrl>o'])
+        self.makeoneaction('save', self.on_save, ['<ctrl>s'])
         
 ###########################################################################
 # Processing the log file. TODO: change it to async. 

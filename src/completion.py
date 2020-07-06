@@ -1,6 +1,6 @@
 import gi
 import re
-from gi.repository import GObject
+from gi.repository import GObject, Gtk
 gi.require_version("GtkSource","4")
 from gi.repository import GtkSource
 
@@ -70,19 +70,37 @@ class LatexCompletionProvider(GObject.GObject, GtkSource.CompletionProvider):
         # If text is part of begin, show the begin proposal.
         if re.match(context.text,"begin"):
             proposals.append(
-	            GtkSource.CompletionItem(label='Equation', text='begin{equation}\n\n\\end{equation}', icon=None, info=None) 
+	            GtkSource.CompletionItem(label='Equation', text='begin{equation}\n  •\n\\end{equation}', icon=None, info=None) 
             )
             proposals.append(
-	            GtkSource.CompletionItem(label='Itemize', text='begin{itemize}\n\n\\end{itemize}', icon=None, info=None) 
+	            GtkSource.CompletionItem(label='Itemize', text='begin{itemize}\n  •\n\\end{itemize}', icon=None, info=None) 
             )
         if re.match(context.text, "section"):
             proposals.append(
-                GtkSource.CompletionItem(label='Section', text='section{}', icon=None, info=None), 
+                GtkSource.CompletionItem(label='Section', text='section{•}', icon=None, info=None), 
             )
         if re.match(context.text, "subsection"):
             proposals.append(
-                GtkSource.CompletionItem(label='Subsection', text='subsection{}', icon=None, info=None), 
+                GtkSource.CompletionItem(label='Subsection', text='subsection{•}', icon=None, info=None), 
             )
             
         context.add_proposals(self, proposals, True)
         return
+        
+    # Overweiring the match to find a dot in the proposal and 
+    def do_activate_proposal(self,proposal,it):
+        buf = it.get_buffer()
+        mov_iter = it.copy()
+        mov_iter.backward_find_char(lambda ch,data: ch=='\\',None,None)
+        mark = buf.create_mark(None,mov_iter,True)
+        mov_iter.forward_char()
+        buf.delete(mov_iter,it)
+        buf.insert(it,proposal.get_text())
+        mov_iter = buf.get_iter_at_mark(mark)
+        if it.backward_find_char(lambda ch,data: ch == '•',None,mov_iter):
+            mov_iter = it.copy()
+            mov_iter.forward_char()
+            buf.select_range(it,mov_iter)
+        return True
+      
+                
