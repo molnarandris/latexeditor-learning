@@ -124,22 +124,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             dialog.run()
             dialog.destroy()
             
-    # Reload the pdf. This is the async version.
-    def pdf_reload(self):
-        pdfname = os.path.splitext(self.tex)[0] + '.pdf'
-        #should do error check here. 
-        pdf = Gio.File.new_for_path(pdfname)
-        pdf_loader = EvinceView.JobLoadGFile.new(pdf,EvinceDocument.DocumentLoadFlags.NONE)
-        pdf_loader.connect("finished", self.on_pdf_load_finished)
-        pdf_loader.run()
-    
-        
-    # Callback for Evince's async pdf loader.
-    def on_pdf_load_finished(self,job):
-        if job.is_failed():
-            print("Loading the Pdf has failed")
-        else:
-            self.pdf_viewer.model.set_document(job.document)
 
     # Reload the pdf. This is the sync version. 
     def pdf_reload_sync(self):
