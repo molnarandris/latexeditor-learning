@@ -103,27 +103,6 @@
               </packing>
             </child>
             <child>
-              <object class="GtkScrolledWindow" id="log_scroll">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="shadow_type">in</property>
-                <child>
-                  <object class="GtkSourceView" id="log_view">
-                    <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="left_margin">2</property>
-                    <property name="right_margin">2</property>
-                  </object>
-                </child>
-              </object>
-              <packing>
-                <property name="name">log</property>
-                <property name="title" translatable="yes">LOG</property>
-                <property name="icon_name">org.gnome.Logs-symbolic</property>
-                <property name="position">1</property>
-              </packing>
-            </child>
-            <child>
               <object class="GtkScrolledWindow" id="logscroll">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -145,7 +124,7 @@
                 <property name="name">log_list</property>
                 <property name="title" translatable="yes">log_list</property>
                 <property name="icon_name">org.gnome.Logs-symbolic</property>
-                <property name="position">2</property>
+                <property name="position">1</property>
               </packing>
             </child>
           </object>

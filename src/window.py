@@ -29,7 +29,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     header_bar = Gtk.Template.Child()
     paned      = Gtk.Template.Child()
     pdf_scroll = Gtk.Template.Child()
-    log_view   = Gtk.Template.Child()
     view_stack = Gtk.Template.Child()
     log_list   = Gtk.Template.Child()
 
@@ -63,8 +62,6 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         self.completion.add_provider(latex_completion_provider)
         self.latex_completion_provider = latex_completion_provider        
 
-        self.log_buffer = self.log_view.get_buffer()
-        
         self.state_saver = WindowStateSaver(self)
         # Add actions
         self.makeactions()
@@ -113,6 +110,7 @@ class MathwriterWindow(Gtk.ApplicationWindow):
             self.header_bar.set_subtitle(filename)
             self.state_saver.on_file_save(filename)
             self.pdf_reload_sync()
+            self.on_log_load()
         else:
             msg = "File loading failed"
             dialog = Gtk.MessageDialog(
@@ -188,12 +186,8 @@ class MathwriterWindow(Gtk.ApplicationWindow):
     # Callback for the compile async processrunner: 
     # gets called when the compilation is finished. 
     def on_compile_finished(self,sender):
-        # load the log file.
-        logname = os.path.splitext(self.tex)[0] + '.log'
-        l = GtkSource.File.new()
-        l.set_location(Gio.File.new_for_path(logname))
-        log_loader = GtkSource.FileLoader.new(self.log_buffer,l)
-        log_loader.load_async(GLib.PRIORITY_DEFAULT,None,None,None,self.on_log_load_finished,None)
+        
+        self.on_log_load()
         
         if sender.result == 0:
             # Compilation was successful
@@ -210,16 +204,21 @@ class MathwriterWindow(Gtk.ApplicationWindow):
         i = self.buffer.get_iter_at_offset(self.buffer.props.cursor_position)
         sl = EvinceDocument.SourceLink.new(self.tex,i.get_line(),i.get_line_offset())
         self.pdf_viewer.highlight_forward_search(sl)
-        
+
+    def on_log_load(self):
+        # load the log file.
+        logname = os.path.splitext(self.tex)[0] + '.log'
+        l = Gio.File.new_for_path(logname)
+        l.load_contents_async(None, self._log_load_cb, None)
     
-    # Callback for the async log loader. For now, it does nothing.
-    def on_log_load_finished(self, loader, result, data):
-        loader.load_finish(result)
-        buf = loader.get_buffer()
-        log = buf.get_text(buf.get_start_iter(),buf.get_end_iter(),False)
-        self.LogProcessor.process(log)
-        print("Log loading finished")
-        
+    def _log_load_cb(self,src,res,data):
+        success, contents, etag = src.load_contents_finish(res)
+        try:
+            decoded = contents.decode("UTF-8")
+        except UnicodeDecodeError:
+            print("Error: Unknown character encoding. Expecting UTF-8")
+        self.LogProcessor.process(decoded)
+            
             
     # callback for Evince doing Synctex from pdf to source.
     # Go to the corresponding line. This needs to be refined. 
